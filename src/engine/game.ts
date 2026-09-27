@@ -109,6 +109,7 @@ export function createGame(options: NewGameOptions): GameState {
     log: [],
     tradesThisTurn: 0,
     lastCardPlay: null,
+    lastSteal: null,
     lastChange: null,
   };
   log(state, null, `A new island rises. ${players[first].name} places first.`);
@@ -758,6 +759,7 @@ function stealFrom(state: GameState, thief: number, victim: number) {
   const r = pool[randomInt(state, pool.length)];
   v.resources[r]--;
   state.players[thief].resources[r]++;
+  state.lastSteal = { id: (state.lastSteal?.id ?? 0) + 1, thief, victim, resource: r };
   log(state, thief, `${state.players[thief].name} steals a card from ${v.name}.`);
 }
 

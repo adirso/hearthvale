@@ -72,7 +72,7 @@ export function PlayersPanel({ state, humanId }: { state: GameState; humanId: nu
         const hiddenVp = victoryPoints(state, p.id) - publicVp;
         const active = state.currentPlayer === p.id && state.phase !== 'gameOver';
         return (
-          <div key={p.id} className={`player-row ${active ? 'active' : ''}`} style={{ borderColor: p.color }}>
+          <div key={p.id} className={`player-row ${active ? 'active' : ''}`} style={{ borderColor: p.color }} data-player-row={p.id}>
             <span className="swatch" style={{ background: p.color }} />
             <div className="player-main">
               <div className="player-name">
@@ -110,7 +110,7 @@ export function HandPanel({ state, humanId }: { state: GameState; humanId: numbe
       <h2>Your cards</h2>
       <div className="cards">
         {RESOURCES.map((r) => (
-          <div key={r} className={`card ${me.resources[r] === 0 ? 'none' : ''}`} title={RESOURCE_LABEL[r]}>
+          <div key={r} className={`card ${me.resources[r] === 0 ? 'none' : ''}`} title={RESOURCE_LABEL[r]} data-hand-resource={r}>
             <ResourceGlyph resource={r} size={30} />
             <span className="card-name">{RESOURCE_LABEL[r]}</span>
             <span className="card-count">{me.resources[r]}</span>

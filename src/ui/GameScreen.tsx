@@ -24,6 +24,8 @@ import { EndScreen } from './EndScreen';
 import { CostsPanel, DevCardsPanel, Dice, HandPanel, LogPanel, PlayersPanel } from './panels';
 import { playSound, setSoundEnabled } from './sound';
 import { soundCues } from './soundEvents';
+import { animateLoss } from './lossAnimation';
+import { lossesFor } from './lossEvents';
 import type { Prefs } from './storage';
 import { CardReveal } from './CardReveal';
 import { revealDuration, useGameController } from './useGameController';
@@ -117,7 +119,7 @@ function quickHint(t: BoardTargets): string | null {
 }
 
 export function GameScreen({ initial, speed, onSpeedChange, sound, onSoundChange, onNewGame, onMenu }: Props) {
-  const { state, humanId, error, notice, dispatch, askRivals, tradeWith, clearMessages } = useGameController(initial, speed);
+  const { state, humanId, error, notice, dispatch, askRivals, tradeWith, announce, clearMessages } = useGameController(initial, speed);
   const [rawMode, setMode] = useState<BuildMode>(null);
   const [rawPanel, setPanel] = useState<SidePanel>(null);
   const [rawPicker, setPicker] = useState<'embargo' | 'bounty' | null>(null);
@@ -154,8 +156,13 @@ export function GameScreen({ initial, speed, onSpeedChange, sound, onSoundChange
   useEffect(() => {
     const prev = prevState.current;
     prevState.current = state;
-    if (prev !== state) soundCues(prev, state, humanId).forEach((c) => playSound(c.name, c.delay));
-  }, [state, humanId]);
+    if (prev === state) return;
+    soundCues(prev, state, humanId).forEach((c) => playSound(c.name, c.delay));
+    // Cards taken from you fly out of your hand to whoever took them.
+    const losses = lossesFor(prev, state, humanId);
+    losses.forEach(animateLoss);
+    if (losses.length) announce(losses.map((l) => l.message).join(' '));
+  }, [state, humanId, announce]);
   useEffect(() => {
     if (error) playSound('error');
   }, [error]);

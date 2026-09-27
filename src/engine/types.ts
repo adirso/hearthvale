@@ -84,6 +84,15 @@ export interface CardPlay {
   gainedArmy?: boolean;
 }
 
+/** The most recent robbery. Only the thief and the victim may be told the resource. */
+export interface Steal {
+  /** Increments with every robbery in the game. */
+  id: number;
+  thief: number;
+  victim: number;
+  resource: Resource;
+}
+
 export interface LogEntry {
   turn: number;
   player: number | null;
@@ -131,6 +140,8 @@ export interface GameState {
   tradesThisTurn: number;
   /** Absent in saves from older versions. */
   lastCardPlay?: CardPlay | null;
+  /** Absent in saves from older versions. */
+  lastSteal?: Steal | null;
   /** Most recent board change, for UI highlighting. */
   lastChange: { kind: 'vertex' | 'edge' | 'hex'; id: number } | null;
 }

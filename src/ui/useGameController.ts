@@ -36,6 +36,8 @@ export interface Controller {
   askRivals: (give: ResourceBag, get: ResourceBag) => Record<number, TradeResponse>;
   /** Complete the trade with one rival who accepted. */
   tradeWith: (partner: number, give: ResourceBag, get: ResourceBag) => boolean;
+  /** Show a short message to the player. */
+  announce: (message: string) => void;
   clearMessages: () => void;
 }
 
@@ -112,5 +114,5 @@ export function useGameController(initial: GameState, speed: Prefs['speed']): Co
     setNotice(null);
   }, []);
 
-  return { state, humanId, error, notice, dispatch, askRivals, tradeWith, clearMessages };
+  return { state, humanId, error, notice, dispatch, askRivals, tradeWith, announce: setNotice, clearMessages };
 }
