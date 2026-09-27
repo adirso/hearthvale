@@ -81,7 +81,10 @@ The UI only ever calls `applyAction(state, player, action)`. The engine throws
 - Both levels pause between actions (adjustable pace: relaxed, normal or fast). New pieces animate in, the dice tumble, and the prompt bar and Chronicle log narrate each move.
 
 **Interface**
-- Start screen with New Game, rival difficulty (Basic, Intermediate or Mixed), pace and Resume Game.
+- Start screen with New Game, rival difficulty (Basic, Intermediate or Mixed), your color (six choices), who places first (you, a rival, or random), pace and Resume Game.
+- The start screen previews the island you are about to play. **Shuffle map** rolls a new one, and every new game gets a fresh map.
+- **Build straight from the map:** when you can afford a road, settlement or city, hovering a legal spot shows a see-through preview of the piece, and clicking builds it. Only legal, affordable spots respond. On touch screens, the first tap previews and the second tap builds. The build buttons still work too.
+- **Sound effects** for dice, roads, settlements, cities, buying and playing cards, trades, the raider, steals, discards, gathering resources, your turn starting, and victory or defeat. Rivals' moves make sound as well. All sounds are generated in the browser with the Web Audio API (no audio files), and a 🔊 toggle mutes them. The setting is remembered.
 - End screen with the winner and a score breakdown (settlements, cities, titles, monuments, total).
 - The game panel shows the board, your cards, development cards, all settlers (VP, hand size, cards, wardens, road length, titles), building costs, the dice, the current turn and the move history.
 - Only legal actions are offered. Build buttons appear only when you can afford them and a legal spot exists, and pressing one highlights exactly the legal intersections or paths.
@@ -101,6 +104,7 @@ The UI only ever calls `applyAction(state, player, action)`. The engine throws
   - every development card, including the bought-this-turn and one-per-turn limits
   - harbor ratios and player trades
   - victory, including the hidden Monument win
+- `tests/soundCues.test.ts` checks which sound each kind of move triggers, and `tests/newGame.test.ts` covers fresh maps, the previewed seed, color choice and the starting player.
 - `tests/ai.test.ts` covers opening quality, raider targeting, trade acceptance, and deterministic resume from a serialized save at every step.
 - `tests/simulation.test.ts` plays **60 complete AI-vs-AI games** across all difficulty lineups. Every game must reach a winner with 10+ VP, and the rivals must use every action type: roads, settlements, cities, all four playable cards, trades, raider, steals and discards. Typical result: about 76 turns per game, and in mixed lineups Intermediate wins about 70% of the time.
 - The real UI was also driven end to end in headless Chrome, with the human seat played by a script, at desktop (1400×900) and mobile (390×844) sizes. Both runs reached the victory screen with no console errors, and a mid-game page refresh with Resume restored the exact turn. A second scripted run checked the UI paths for building roads, settlements and cities, Surveyor, buying a card, bank trades, rival trade offers and turn handoff.

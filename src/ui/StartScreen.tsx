@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { victoryPoints, type GameState } from '../engine';
+import { randomSeed } from '../engine/rng';
+import { Board, NO_TARGETS } from './Board';
+import { newGameFrom, PLAYER_COLORS, RIVAL_NAMES } from './newGame';
 import type { Prefs } from './storage';
 
 interface Props {
   prefs: Prefs;
   saved: GameState | null;
-  onStart: (prefs: Prefs) => void;
+  onStart: (prefs: Prefs, seed: number) => void;
   onResume: () => void;
 }
 
@@ -19,6 +22,13 @@ export function StartScreen({ prefs, saved, onStart, onResume }: Props) {
   const [name, setName] = useState(prefs.name);
   const [difficulty, setDifficulty] = useState(prefs.difficulty);
   const [speed, setSpeed] = useState(prefs.speed);
+  const [color, setColor] = useState(prefs.color);
+  const [firstPlayer, setFirstPlayer] = useState(prefs.firstPlayer);
+  const [seed, setSeed] = useState(randomSeed);
+  const [focus, setFocus] = useState<number | null>(null);
+  const chosen: Prefs = { ...prefs, name: name.trim() || 'You', difficulty, speed, color, firstPlayer };
+  // The map depends only on the seed, so this preview is exactly the island you will play.
+  const preview = useMemo(() => newGameFrom({ ...prefs, firstPlayer: 'you' }, seed), [prefs, seed]);
   const resumable = saved && saved.phase !== 'gameOver' ? saved : null;
   const human = resumable?.players.find((p) => p.isHuman);
 
@@ -58,6 +68,32 @@ export function StartScreen({ prefs, saved, onStart, onResume }: Props) {
               </label>
             ))}
           </fieldset>
+          <fieldset>
+            <legend>Your colour</legend>
+            <div className="color-row">
+              {PLAYER_COLORS.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={`color-swatch ${color === c.id ? 'selected' : ''}`}
+                  style={{ background: c.hex }}
+                  onClick={() => setColor(c.id)}
+                  aria-label={c.label}
+                  aria-pressed={color === c.id}
+                  title={c.label}
+                />
+              ))}
+            </div>
+          </fieldset>
+          <label>
+            Who places first
+            <select value={firstPlayer} onChange={(e) => setFirstPlayer(e.target.value as Prefs['firstPlayer'])}>
+              <option value="random">Random</option>
+              <option value="you">You</option>
+              <option value="maren">{RIVAL_NAMES[0]}</option>
+              <option value="tobin">{RIVAL_NAMES[1]}</option>
+            </select>
+          </label>
           <label>
             Rival pace
             <select value={speed} onChange={(e) => setSpeed(e.target.value as Prefs['speed'])}>
@@ -68,7 +104,25 @@ export function StartScreen({ prefs, saved, onStart, onResume }: Props) {
           </label>
         </div>
 
-        <button className={resumable ? 'wide' : 'primary wide'} onClick={() => onStart({ name: name.trim() || 'You', difficulty, speed })}>
+        <div className="map-preview">
+          <div className="map-preview-head">
+            <span>Your island</span>
+            <button type="button" className="small" onClick={() => setSeed(randomSeed())}>
+              🔀 Shuffle map
+            </button>
+          </div>
+          <Board
+            state={preview}
+            targets={NO_TARGETS}
+            focusVertex={focus}
+            onFocusVertex={setFocus}
+            onVertex={() => {}}
+            onEdge={() => {}}
+            onHex={() => {}}
+          />
+        </div>
+
+        <button className={resumable ? 'wide' : 'primary wide'} onClick={() => onStart(chosen, seed)}>
           New game
         </button>
         {resumable && <p className="hint">Starting a new game replaces your saved game.</p>}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   canAfford,
   canPlayDevCard,
@@ -22,6 +22,8 @@ import { Board, NO_TARGETS, type BoardTargets } from './Board';
 import { BankTradePanel, DiscardDialog, PlayerTradePanel, ResourcePickDialog, StealDialog } from './dialogs';
 import { EndScreen } from './EndScreen';
 import { CostsPanel, DevCardsPanel, Dice, HandPanel, LogPanel, PlayersPanel } from './panels';
+import { playSound, setSoundEnabled } from './sound';
+import { soundCues } from './soundEvents';
 import type { Prefs } from './storage';
 import { useGameController } from './useGameController';
 
@@ -32,6 +34,8 @@ interface Props {
   initial: GameState;
   speed: Prefs['speed'];
   onSpeedChange: (s: Prefs['speed']) => void;
+  sound: boolean;
+  onSoundChange: (on: boolean) => void;
   onNewGame: () => void;
   onMenu: () => void;
 }
@@ -101,7 +105,17 @@ function describeVertex(state: GameState, v: number) {
   );
 }
 
-export function GameScreen({ initial, speed, onSpeedChange, onNewGame, onMenu }: Props) {
+function quickHint(t: BoardTargets): string | null {
+  const kinds: string[] = [];
+  if (t.quickEdges?.size) kinds.push('roads');
+  const vs = [...(t.quickVertices?.values() ?? [])];
+  if (vs.includes('settlement')) kinds.push('settlements');
+  if (vs.includes('city')) kinds.push('cities');
+  if (!kinds.length) return null;
+  return `You can afford ${kinds.join(', ')}: hover the map to preview and click to build (tap twice on touch screens).`;
+}
+
+export function GameScreen({ initial, speed, onSpeedChange, sound, onSoundChange, onNewGame, onMenu }: Props) {
   const { state, humanId, error, notice, dispatch, proposeTrade, clearMessages } = useGameController(initial, speed);
   const [rawMode, setMode] = useState<BuildMode>(null);
   const [rawPanel, setPanel] = useState<SidePanel>(null);
@@ -124,10 +138,28 @@ export function GameScreen({ initial, speed, onSpeedChange, onNewGame, onMenu }:
     return () => clearTimeout(t);
   }, [error, notice, clearMessages]);
 
+  // Sound effects for every change on the board, whoever made it.
+  useEffect(() => setSoundEnabled(sound), [sound]);
+  const prevState = useRef(state);
+  useEffect(() => {
+    const prev = prevState.current;
+    prevState.current = state;
+    if (prev !== state) soundCues(prev, state, humanId).forEach((c) => playSound(c.name, c.delay));
+  }, [state, humanId]);
+  useEffect(() => {
+    if (error) playSound('error');
+  }, [error]);
+
   const targets: BoardTargets = useMemo(() => {
     if (!myTurn) return NO_TARGETS;
-    const t: BoardTargets = { vertices: new Set(), edges: new Set(), hexes: new Set() };
+    const t: BoardTargets = {
+      vertices: new Set(),
+      edges: new Set(),
+      hexes: new Set(),
+      ghostColor: state.players[humanId].color,
+    };
     if (state.phase === 'setup') {
+      t.vertexGhost = 'settlement';
       if (state.setup!.step === 'settlement') legalSetupSettlementVertices(state).forEach((v) => t.vertices.add(v));
       else legalSetupRoadEdges(state).forEach((e) => t.edges.add(e));
     } else if (state.phase === 'moveRaider') {
@@ -138,6 +170,16 @@ export function GameScreen({ initial, speed, onSpeedChange, onNewGame, onMenu }:
       if (mode === 'road') legalRoadEdges(state, humanId).forEach((e) => t.edges.add(e));
       if (mode === 'settlement') legalSettlementVertices(state, humanId).forEach((v) => t.vertices.add(v));
       if (mode === 'city') legalCityVertices(state, humanId).forEach((v) => t.vertices.add(v));
+      if (mode === 'settlement' || mode === 'city') t.vertexGhost = mode;
+      if (mode === null) {
+        // No mode chosen: every affordable, legal build is available straight from the map.
+        if (canAfford(state, humanId, 'road')) t.quickEdges = new Set(legalRoadEdges(state, humanId));
+        const quick = new Map<number, 'settlement' | 'city'>();
+        if (canAfford(state, humanId, 'settlement'))
+          legalSettlementVertices(state, humanId).forEach((v) => quick.set(v, 'settlement'));
+        if (canAfford(state, humanId, 'city')) legalCityVertices(state, humanId).forEach((v) => quick.set(v, 'city'));
+        t.quickVertices = quick;
+      }
     }
     return t;
   }, [state, humanId, myTurn, mode]);
@@ -149,6 +191,10 @@ export function GameScreen({ initial, speed, onSpeedChange, onNewGame, onMenu }:
     }
     else if (mode === 'city') {
       if (dispatch({ type: 'buildCity', vertex: v })) setMode(null);
+    } else if (inMain) {
+      // Quick build straight from the map.
+      const own = state.buildings[v];
+      dispatch(own ? { type: 'buildCity', vertex: v } : { type: 'buildSettlement', vertex: v });
     }
     setFocusVertex(null);
   };
@@ -157,7 +203,7 @@ export function GameScreen({ initial, speed, onSpeedChange, onNewGame, onMenu }:
     else if (state.phase === 'roadBuilding') dispatch({ type: 'placeFreeRoad', edge: e });
     else if (mode === 'road') {
       if (dispatch({ type: 'buildRoad', edge: e })) setMode(null);
-    }
+    } else if (inMain) dispatch({ type: 'buildRoad', edge: e });
   };
   const onHex = (h: number) => dispatch({ type: 'moveRaider', hex: h });
 
@@ -189,6 +235,15 @@ export function GameScreen({ initial, speed, onSpeedChange, onNewGame, onMenu }:
           ☰ Menu
         </button>
         <h1>Hearthvale</h1>
+        <div className="top-controls">
+        <button
+          className="ghost small sound-toggle"
+          onClick={() => onSoundChange(!sound)}
+          aria-label={sound ? 'Mute sound' : 'Turn sound on'}
+          title={sound ? 'Mute sound' : 'Turn sound on'}
+        >
+          {sound ? '🔊' : '🔇'}
+        </button>
         <label className="speed">
           Pace
           <select value={speed} onChange={(e) => onSpeedChange(e.target.value as Prefs['speed'])}>
@@ -197,6 +252,7 @@ export function GameScreen({ initial, speed, onSpeedChange, onNewGame, onMenu }:
             <option value="fast">Fast</option>
           </select>
         </label>
+        </div>
       </header>
 
       <div className="layout">
@@ -220,7 +276,7 @@ export function GameScreen({ initial, speed, onSpeedChange, onNewGame, onMenu }:
             {focusVertex !== null ? (
               describeVertex(state, focusVertex)
             ) : (
-              <span className="muted">Hover or tap an intersection to see which tiles it touches.</span>
+              <span className="muted">{quickHint(targets) ?? 'Hover or tap an intersection to see which tiles it touches.'}</span>
             )}
           </div>
           {(error || notice) && (

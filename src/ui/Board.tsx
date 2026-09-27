@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useState, type PointerEvent } from 'react';
 import { RESOURCE_LABEL, TOPOLOGY, type GameState } from '../engine';
 import {
   CityShape,
@@ -13,13 +13,25 @@ import {
 
 const S = 60;
 
+export type VertexBuild = 'settlement' | 'city';
+
 export interface BoardTargets {
+  /** Glowing targets for the decision at hand (setup, a chosen build mode, the raider…). */
   vertices: Set<number>;
   edges: Set<number>;
   hexes: Set<number>;
+  /** Piece to preview on a glowing vertex target. */
+  vertexGhost?: VertexBuild;
+  /** Builds available without choosing a mode: invisible until hovered. */
+  quickEdges?: Set<number>;
+  quickVertices?: Map<number, VertexBuild>;
+  /** Colour of the player who would build. */
+  ghostColor?: string;
 }
 
 export const NO_TARGETS: BoardTargets = { vertices: new Set(), edges: new Set(), hexes: new Set() };
+
+type Preview = { kind: 'edge'; id: number } | { kind: 'vertex'; id: number; build: VertexBuild } | null;
 
 interface BoardProps {
   state: GameState;
@@ -43,12 +55,76 @@ export function Board({ state, targets, focusVertex, onFocusVertex, onVertex, on
     return `${minX} ${minY} ${Math.max(...xs) - minX + m} ${Math.max(...ys) - minY + m}`;
   }, []);
 
+  const [preview, setPreview] = useState<Preview>(null);
+  const pointerType = useRef<string>('mouse');
+  const quickEdges = targets.quickEdges ?? new Set<number>();
+  const quickVertices = targets.quickVertices ?? new Map<number, VertexBuild>();
+  const ghostColor = targets.ghostColor ?? '#ffffff';
+
+  // Drop a preview that is no longer offered (after building, end of turn…).
+  const livePreview: Preview =
+    preview &&
+    ((preview.kind === 'edge' && (targets.edges.has(preview.id) || quickEdges.has(preview.id))) ||
+      (preview.kind === 'vertex' && (targets.vertices.has(preview.id) || quickVertices.has(preview.id))))
+      ? preview
+      : null;
+
+  const vertexBuild = (v: number): VertexBuild | null =>
+    targets.vertices.has(v) && targets.vertexGhost ? targets.vertexGhost : (quickVertices.get(v) ?? null);
+
+  // A tap fires pointerenter before pointerdown, so read the type from the event itself.
+  const hoverEdge = (e: number, ev: PointerEvent) => {
+    pointerType.current = ev.pointerType;
+    if (ev.pointerType === 'mouse') setPreview({ kind: 'edge', id: e });
+  };
+  const hoverVertex = (v: number, ev: PointerEvent) => {
+    pointerType.current = ev.pointerType;
+    onFocusVertex(v);
+    const build = vertexBuild(v);
+    if (build && ev.pointerType === 'mouse') setPreview({ kind: 'vertex', id: v, build });
+  };
+  const leave = () => {
+    if (pointerType.current === 'mouse') setPreview(null);
+  };
+  /** Quick builds on touch screens need two taps: the first one previews. */
+  const clickEdge = (e: number) => {
+    const quick = !targets.edges.has(e);
+    if (quick && pointerType.current !== 'mouse' && !(livePreview?.kind === 'edge' && livePreview.id === e)) {
+      setPreview({ kind: 'edge', id: e });
+      return;
+    }
+    setPreview(null);
+    onEdge(e);
+  };
+  const clickVertex = (v: number) => {
+    const build = vertexBuild(v);
+    if (!targets.vertices.has(v) && !build) {
+      onFocusVertex(focusVertex === v ? null : v);
+      return;
+    }
+    const quick = !targets.vertices.has(v);
+    if (quick && pointerType.current !== 'mouse' && !(livePreview?.kind === 'vertex' && livePreview.id === v)) {
+      onFocusVertex(v);
+      setPreview({ kind: 'vertex', id: v, build: build! });
+      return;
+    }
+    setPreview(null);
+    onVertex(v);
+  };
+
   const focusHexes = new Set(focusVertex === null ? [] : TOPOLOGY.vertexHexes[focusVertex]);
   const change = state.lastChange;
   const changeKey = state.log.length;
 
   return (
-    <svg className="board" viewBox={viewBox} role="img" aria-label="Island board">
+    <svg
+      className="board"
+      viewBox={viewBox}
+      role="img"
+      aria-label="Island board"
+      onPointerDown={(e) => (pointerType.current = e.pointerType)}
+      onPointerMove={(e) => (pointerType.current = e.pointerType)}
+    >
       <defs>
         <radialGradient id="sea" cx="50%" cy="50%" r="65%">
           <stop offset="0%" stopColor="#3b8bb8" />
@@ -131,18 +207,39 @@ export function Board({ state, targets, focusVertex, onFocusVertex, onVertex, on
         );
       })}
 
-      {/* Edge targets */}
-      {[...targets.edges].map((e) => {
+      {/* Edge targets: glowing ones for the current decision, invisible quick builds */}
+      {[...targets.edges, ...[...quickEdges].filter((e) => !targets.edges.has(e))].map((e) => {
         const [a, b] = TOPOLOGY.edgeVertices[e];
         const p = px(a);
         const q = px(b);
+        const glowing = targets.edges.has(e);
         return (
-          <g key={`t${e}`} className="edge-target" onClick={() => onEdge(e)}>
+          <g
+            key={`t${e}`}
+            className={glowing ? 'edge-target' : 'edge-target quick'}
+            onPointerEnter={(ev) => hoverEdge(e, ev)}
+            onPointerLeave={leave}
+            onClick={() => clickEdge(e)}
+          >
+            <title>Build a road here</title>
             <line x1={p.x} y1={p.y} x2={q.x} y2={q.y} className="edge-hit" strokeWidth={S * 0.42} />
-            <line x1={p.x} y1={p.y} x2={q.x} y2={q.y} className="edge-glow" strokeWidth={S * 0.12} />
+            {glowing && <line x1={p.x} y1={p.y} x2={q.x} y2={q.y} className="edge-glow" strokeWidth={S * 0.12} />}
           </g>
         );
       })}
+
+      {livePreview?.kind === 'edge' &&
+        (() => {
+          const [a, b] = TOPOLOGY.edgeVertices[livePreview.id];
+          const p = px(a);
+          const q = px(b);
+          return (
+            <g className="build-ghost" pointerEvents="none">
+              <line x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke="#1b1b1b" strokeWidth={S * 0.2} strokeLinecap="round" />
+              <line x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={ghostColor} strokeWidth={S * 0.13} strokeLinecap="round" />
+            </g>
+          );
+        })()}
 
       {/* Buildings */}
       {state.buildings.map((b, v) => {
@@ -153,11 +250,15 @@ export function Board({ state, targets, focusVertex, onFocusVertex, onVertex, on
         return (
           <g
             key={fresh ? `${v}-${changeKey}` : v}
-            className={`building ${fresh ? 'fresh' : ''}`}
-            onMouseEnter={() => onFocusVertex(v)}
-            onMouseLeave={() => onFocusVertex(null)}
-            onClick={() => (targets.vertices.has(v) ? onVertex(v) : onFocusVertex(focusVertex === v ? null : v))}
+            className={`building ${fresh ? 'fresh' : ''} ${vertexBuild(v) ? 'buildable' : ''}`}
+            onPointerEnter={(ev) => hoverVertex(v, ev)}
+            onPointerLeave={() => {
+              onFocusVertex(null);
+              leave();
+            }}
+            onClick={() => clickVertex(v)}
           >
+            {vertexBuild(v) === 'city' && <title>Raise a city here</title>}
             {b.kind === 'city' ? <CityShape x={x} y={y} s={S} color={color} /> : <SettlementShape x={x} y={y} s={S} color={color} />}
           </g>
         );
@@ -167,21 +268,40 @@ export function Board({ state, targets, focusVertex, onFocusVertex, onVertex, on
       {TOPOLOGY.vertexPoints.map((_, v) => {
         const isTarget = targets.vertices.has(v);
         if (state.buildings[v] && !isTarget) return null;
+        const quick = !isTarget && quickVertices.has(v);
         const { x, y } = px(v);
         return (
           <g
             key={`v${v}`}
-            className={isTarget ? 'vertex target' : 'vertex'}
-            onMouseEnter={() => onFocusVertex(v)}
-            onMouseLeave={() => onFocusVertex(null)}
-            onClick={() => (isTarget ? onVertex(v) : onFocusVertex(focusVertex === v ? null : v))}
+            className={isTarget ? 'vertex target' : quick ? 'vertex quick' : 'vertex'}
+            onPointerEnter={(ev) => hoverVertex(v, ev)}
+            onPointerLeave={() => {
+              onFocusVertex(null);
+              leave();
+            }}
+            onClick={() => clickVertex(v)}
           >
+            {quick && <title>Found a settlement here</title>}
             {/* Generous invisible hit area for touch screens. */}
-            <circle cx={x} cy={y} r={S * (isTarget ? 0.34 : 0.2)} className="vertex-hit" />
+            <circle cx={x} cy={y} r={S * (isTarget || quick ? 0.34 : 0.2)} className="vertex-hit" />
             {isTarget && <circle cx={x} cy={y} r={S * 0.16} className="vertex-target" pointerEvents="none" />}
           </g>
         );
       })}
+
+      {livePreview?.kind === 'vertex' &&
+        (() => {
+          const { x, y } = px(livePreview.id);
+          return (
+            <g className="build-ghost" pointerEvents="none">
+              {livePreview.build === 'city' ? (
+                <CityShape x={x} y={y} s={S} color={ghostColor} />
+              ) : (
+                <SettlementShape x={x} y={y} s={S} color={ghostColor} />
+              )}
+            </g>
+          );
+        })()}
 
       {(() => {
         const c = TOPOLOGY.hexCenters[state.raiderHex];

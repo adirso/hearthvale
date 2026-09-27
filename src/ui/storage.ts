@@ -7,9 +7,13 @@ export interface Prefs {
   name: string;
   difficulty: 'basic' | 'intermediate' | 'mixed';
   speed: 'relaxed' | 'normal' | 'fast';
+  sound: boolean;
+  /** Id from PLAYER_COLORS. */
+  color: string;
+  firstPlayer: 'random' | 'you' | 'maren' | 'tobin';
 }
 
-export const DEFAULT_PREFS: Prefs = { name: 'You', difficulty: 'intermediate', speed: 'normal' };
+export const DEFAULT_PREFS: Prefs = { name: 'You', difficulty: 'intermediate', speed: 'normal', sound: true, color: 'crimson', firstPlayer: 'random' };
 
 export function saveGame(state: GameState) {
   try {

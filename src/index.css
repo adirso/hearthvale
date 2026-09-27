@@ -949,3 +949,82 @@ legend {
     font-size: 0.9rem;
   }
 }
+
+/* ---------- Build previews ---------- */
+
+.build-ghost {
+  opacity: 0.6;
+  animation: ghost 0.9s ease-in-out infinite;
+}
+
+.edge-target.quick .edge-hit,
+.vertex.quick .vertex-hit,
+.building.buildable {
+  cursor: pointer;
+}
+
+.building.buildable:hover {
+  filter: drop-shadow(0 0 6px var(--glow));
+}
+
+@keyframes ghost {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.top-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topbar .sound-toggle {
+  text-decoration: none;
+  font-size: 1.1rem;
+  padding: 2px 6px;
+}
+
+/* ---------- Start screen extras ---------- */
+
+.color-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.color-swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid #1b1b1b;
+  padding: 0;
+}
+
+.color-swatch.selected {
+  box-shadow: 0 0 0 3px var(--panel), 0 0 0 6px var(--accent);
+}
+
+.map-preview {
+  margin-top: 16px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--bg-2);
+}
+
+.map-preview-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  color: #f5ecd7;
+  font-weight: 700;
+}
+
+.map-preview .board {
+  max-height: 300px;
+}

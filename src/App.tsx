@@ -1,22 +1,9 @@
 import { useState } from 'react';
-import { createGame, type Difficulty, type GameState } from './engine';
+import type { GameState } from './engine';
 import { GameScreen } from './ui/GameScreen';
+import { newGameFrom } from './ui/newGame';
 import { StartScreen } from './ui/StartScreen';
 import { clearGame, loadGame, loadPrefs, saveGame, savePrefs, type Prefs } from './ui/storage';
-
-const COLORS = { human: '#d64541', rivalA: '#2e86de', rivalB: '#8e44ad' };
-
-function newGameFrom(prefs: Prefs): GameState {
-  const rivalDifficulty: [Difficulty, Difficulty] =
-    prefs.difficulty === 'mixed' ? ['basic', 'intermediate'] : [prefs.difficulty, prefs.difficulty];
-  return createGame({
-    players: [
-      { name: prefs.name, isHuman: true, difficulty: 'intermediate', color: COLORS.human },
-      { name: 'Maren', isHuman: false, difficulty: rivalDifficulty[0], color: COLORS.rivalA },
-      { name: 'Tobin', isHuman: false, difficulty: rivalDifficulty[1], color: COLORS.rivalB },
-    ],
-  });
-}
 
 export default function App() {
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
@@ -27,10 +14,11 @@ export default function App() {
     savePrefs(next);
   };
 
-  const start = (next: Prefs) => {
+  /** `seed` is the map previewed on the start screen; omitted means a fresh random map. */
+  const start = (next: Prefs, seed?: number) => {
     updatePrefs(next);
     clearGame();
-    const state = newGameFrom(next);
+    const state = newGameFrom(next, seed);
     saveGame(state);
     setGame((g) => ({ id: (g?.id ?? 0) + 1, state }));
   };
@@ -55,6 +43,8 @@ export default function App() {
       initial={game.state}
       speed={prefs.speed}
       onSpeedChange={(speed) => updatePrefs({ ...prefs, speed })}
+      sound={prefs.sound}
+      onSoundChange={(sound) => updatePrefs({ ...prefs, sound })}
       onNewGame={() => start(prefs)}
       onMenu={() => setGame(null)}
     />
