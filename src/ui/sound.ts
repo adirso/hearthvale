@@ -9,6 +9,10 @@ export type SoundName =
   | 'city'
   | 'buyCard'
   | 'playCard'
+  | 'warden'
+  | 'embargo'
+  | 'bounty'
+  | 'surveyor'
   | 'trade'
   | 'raider'
   | 'steal'
@@ -138,6 +142,30 @@ const SOUNDS: Record<SoundName, (a: { ctx: AudioContext; out: GainNode }) => voi
     noise(a, 0, 0.12, { freq: 3500, endFreq: 1500, q: 1.5, volume: 0.3 });
     tone(a, 587.33, 0.05, 0.3, { type: 'triangle', volume: 0.2 });
     tone(a, 880, 0.12, 0.35, { type: 'triangle', volume: 0.18 });
+  },
+  warden: (a) => {
+    // A rallying horn, then galloping hooves.
+    [392, 523.25, 659.25].forEach((f, i) => tone(a, f, i * 0.14, 0.3, { type: 'sawtooth', volume: 0.09, attack: 0.03 }));
+    tone(a, 783.99, 0.42, 0.55, { type: 'sawtooth', volume: 0.1, attack: 0.03 });
+    for (let i = 0; i < 6; i++) {
+      noise(a, 0.7 + i * 0.13, 0.05, { freq: 500, q: 3, volume: 0.35 });
+      noise(a, 0.76 + i * 0.13, 0.04, { freq: 700, q: 3, volume: 0.25 });
+    }
+  },
+  embargo: (a) => {
+    // A gavel, then a cascade of cards being swept up.
+    tone(a, 140, 0, 0.12, { type: 'triangle', endFreq: 70, volume: 0.45 });
+    noise(a, 0, 0.05, { freq: 1500, q: 3, volume: 0.4 });
+    for (let i = 0; i < 7; i++) noise(a, 0.25 + i * 0.07, 0.08, { freq: 3000 + i * 250, q: 2, volume: 0.22 });
+  },
+  bounty: (a) => {
+    [1318.5, 1760, 2093, 2637].forEach((f, i) => tone(a, f, i * 0.08, 0.3, { type: 'sine', volume: 0.12 }));
+  },
+  surveyor: (a) => {
+    [0.15, 0.55].forEach((t) => {
+      tone(a, 190, t, 0.16, { type: 'triangle', endFreq: 80, volume: 0.4 });
+      noise(a, t, 0.06, { freq: 900, q: 2, volume: 0.3 });
+    });
   },
   trade: (a) => {
     // Coins changing hands.

@@ -502,6 +502,33 @@ describe('development cards', () => {
     expect(totalCards(n.players[0].resources)).toBe(0);
   });
 
+  it('records each card play with its effect for the on-screen reveal', () => {
+    let s = mainPhaseGame();
+    expect(s.lastCardPlay).toBeNull();
+    s.players[0].devCards = ['embargo'];
+    give(s, 1, { stone: 3 });
+    give(s, 2, { stone: 1 });
+    s = applyAction(s, 0, { type: 'playEmbargo', resource: 'stone' });
+    expect(s.lastCardPlay).toEqual({ id: 1, player: 0, card: 'embargo', resource: 'stone', taken: { 1: 3, 2: 1 } });
+
+    s.devCardPlayedThisTurn = false;
+    s.players[0].devCards = ['bounty'];
+    s = applyAction(s, 0, { type: 'playBounty', resources: ['clay', 'timber'] });
+    expect(s.lastCardPlay).toEqual({ id: 2, player: 0, card: 'bounty', resources: ['clay', 'timber'] });
+
+    s.devCardPlayedThisTurn = false;
+    s.players[0].wardensPlayed = 2;
+    s.players[0].devCards = ['warden'];
+    s = applyAction(s, 0, { type: 'playWarden' });
+    expect(s.lastCardPlay).toEqual({ id: 3, player: 0, card: 'warden', wardens: 3, gainedArmy: true });
+
+    s = applyAction(s, 0, { type: 'moveRaider', hex: hexWithToken(s).id });
+    s.devCardPlayedThisTurn = false;
+    s.players[0].devCards = ['warden'];
+    s = applyAction(s, 0, { type: 'playWarden' });
+    expect(s.lastCardPlay).toMatchObject({ id: 4, wardens: 4, gainedArmy: false });
+  });
+
   it('can play a warden before rolling and then still roll', () => {
     let s = mainPhaseGame();
     s.phase = 'roll';

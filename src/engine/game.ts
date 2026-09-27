@@ -23,6 +23,7 @@ import {
   IllegalActionError,
   RESOURCES,
   type Action,
+  type CardPlay,
   type DevCard,
   type Difficulty,
   type GameState,
@@ -107,6 +108,7 @@ export function createGame(options: NewGameOptions): GameState {
     winner: null,
     log: [],
     tradesThisTurn: 0,
+    lastCardPlay: null,
     lastChange: null,
   };
   log(state, null, `A new island rises. ${players[first].name} places first.`);
@@ -562,9 +564,12 @@ export function applyAction(prev: GameState, actor: number, action: Action): Gam
     }
 
     case 'playWarden': {
-      startDevCard(state, actor, 'warden');
+      const play = startDevCard(state, actor, 'warden');
       me.wardensPlayed++;
+      const holderBefore = state.largestArmyHolder;
       updateLargestArmy(state, actor);
+      play.wardens = me.wardensPlayed;
+      play.gainedArmy = holderBefore !== actor && state.largestArmyHolder === actor;
       state.resumePhase = state.phase as 'roll' | 'main';
       state.phase = 'moveRaider';
       break;
@@ -572,10 +577,13 @@ export function applyAction(prev: GameState, actor: number, action: Action): Gam
 
     case 'playEmbargo': {
       ensure(RESOURCES.includes(action.resource), 'Unknown resource');
-      startDevCard(state, actor, 'embargo');
+      const play = startDevCard(state, actor, 'embargo');
+      play.resource = action.resource;
+      play.taken = {};
       let taken = 0;
       for (const p of state.players) {
         if (p.id === actor) continue;
+        play.taken[p.id] = p.resources[action.resource];
         taken += p.resources[action.resource];
         me.resources[action.resource] += p.resources[action.resource];
         p.resources[action.resource] = 0;
@@ -591,7 +599,7 @@ export function applyAction(prev: GameState, actor: number, action: Action): Gam
       want[a]++;
       want[b]++;
       ensure(hasResources(state.bank, want), 'The bank cannot supply that');
-      startDevCard(state, actor, 'bounty');
+      startDevCard(state, actor, 'bounty').resources = [a, b];
       moveResources(state.bank, me.resources, want);
       log(state, actor, `${me.name} takes ${describeBag(want)} from the bank.`);
       break;
@@ -723,12 +731,15 @@ function handleDiscard(state: GameState, actor: number, player: number, cards: R
   if (Object.keys(state.pendingDiscards).length === 0) state.phase = 'moveRaider';
 }
 
-function startDevCard(state: GameState, actor: number, card: DevCard) {
+function startDevCard(state: GameState, actor: number, card: CardPlay['card']): CardPlay {
   ensure(canPlayDevCard(state, actor, card), cardRestrictionMessage(state, actor, card));
   const me = state.players[actor];
   me.devCards.splice(me.devCards.indexOf(card), 1);
   state.devCardPlayedThisTurn = true;
   log(state, actor, `${me.name} plays ${DEV_LABEL[card]}.`);
+  const play: CardPlay = { id: (state.lastCardPlay?.id ?? 0) + 1, player: actor, card };
+  state.lastCardPlay = play;
+  return play;
 }
 
 function cardRestrictionMessage(state: GameState, actor: number, card: DevCard): string {

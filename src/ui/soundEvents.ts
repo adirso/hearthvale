@@ -27,7 +27,11 @@ export function soundCues(prev: GameState, next: GameState, humanId: number): So
   if (roads(next) > roads(prev)) add('road');
 
   if (next.devDeck.length < prev.devDeck.length) add('buyCard');
-  if (!prev.devCardPlayedThisTurn && next.devCardPlayedThisTurn) add('playCard');
+  const play = next.lastCardPlay;
+  if (play && play.id !== (prev.lastCardPlay?.id ?? 0)) {
+    add('playCard');
+    add(play.card, 0.35);
+  } else if (!prev.devCardPlayedThisTurn && next.devCardPlayedThisTurn) add('playCard');
   if (next.tradesThisTurn > prev.tradesThisTurn) add('trade');
 
   if (next.raiderHex !== prev.raiderHex) add('raider');

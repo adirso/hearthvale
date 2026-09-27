@@ -25,7 +25,8 @@ import { CostsPanel, DevCardsPanel, Dice, HandPanel, LogPanel, PlayersPanel } fr
 import { playSound, setSoundEnabled } from './sound';
 import { soundCues } from './soundEvents';
 import type { Prefs } from './storage';
-import { useGameController } from './useGameController';
+import { CardReveal } from './CardReveal';
+import { revealDuration, useGameController } from './useGameController';
 
 type BuildMode = 'road' | 'settlement' | 'city' | null;
 type SidePanel = 'bank' | 'players' | null;
@@ -122,6 +123,15 @@ export function GameScreen({ initial, speed, onSpeedChange, sound, onSoundChange
   const [rawPicker, setPicker] = useState<'embargo' | 'bounty' | null>(null);
   const [focusVertex, setFocusVertex] = useState<number | null>(null);
   const [showEnd, setShowEnd] = useState(true);
+  // Card plays already announced; starts at the saved one so resuming does not replay it.
+  const [dismissedCard, setDismissedCard] = useState(initial.lastCardPlay?.id ?? 0);
+  const cardPlay = state.lastCardPlay && state.lastCardPlay.id !== dismissedCard ? state.lastCardPlay : null;
+  const revealMs = revealDuration(speed);
+  useEffect(() => {
+    if (!cardPlay) return;
+    const t = setTimeout(() => setDismissedCard(cardPlay.id), revealMs);
+    return () => clearTimeout(t);
+  }, [cardPlay, revealMs]);
 
   const me = state.players[humanId];
   const myTurn = state.currentPlayer === humanId && state.phase !== 'gameOver';
@@ -271,6 +281,7 @@ export function GameScreen({ initial, speed, onSpeedChange, sound, onSoundChange
               onEdge={onEdge}
               onHex={onHex}
             />
+            {cardPlay && <CardReveal key={cardPlay.id} play={cardPlay} state={state} humanId={humanId} duration={revealMs} />}
           </div>
           <div className="board-footer">
             {focusVertex !== null ? (

@@ -68,6 +68,22 @@ export type Phase =
   | 'roadBuilding' // placing free roads from a surveyor card
   | 'gameOver';
 
+/** The most recent development card played, with what it did, for on-screen reveals. */
+export interface CardPlay {
+  /** Increments with every card played in the game. */
+  id: number;
+  player: number;
+  card: Exclude<DevCard, 'monument'>;
+  /** Embargo: the resource named and how many each rival handed over. */
+  resource?: Resource;
+  taken?: Record<number, number>;
+  /** Bounty: the two resources taken from the bank. */
+  resources?: [Resource, Resource];
+  /** Warden: wardens played so far, and whether this one won the Strongest Guard. */
+  wardens?: number;
+  gainedArmy?: boolean;
+}
+
 export interface LogEntry {
   turn: number;
   player: number | null;
@@ -113,6 +129,8 @@ export interface GameState {
   log: LogEntry[];
   /** Bank trades made during the current turn (used by AI to avoid loops). */
   tradesThisTurn: number;
+  /** Absent in saves from older versions. */
+  lastCardPlay?: CardPlay | null;
   /** Most recent board change, for UI highlighting. */
   lastChange: { kind: 'vertex' | 'edge' | 'hex'; id: number } | null;
 }

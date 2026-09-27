@@ -60,4 +60,12 @@ describe('sound cues', () => {
     win.winner = 0;
     expect(names(soundCues(next, win, 0))).toEqual(['victory']);
   });
+
+  it('announces each development card with its own sound', () => {
+    const s = mainPhaseGame();
+    s.players[0].devCards = ['surveyor'];
+    placeSettlement(s, 0, 20);
+    const next = applyAction(s, 0, { type: 'playSurveyor' });
+    expect(names(soundCues(s, next, 0))).toEqual(['playCard', 'surveyor']);
+  });
 });

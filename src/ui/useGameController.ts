@@ -1,9 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { chooseAction, tradeResponse, type TradeResponse } from '../ai/ai';
 import { actingPlayers, applyAction, IllegalActionError, type Action, type GameState, type ResourceBag } from '../engine';
 import { saveGame, type Prefs } from './storage';
 
 const SPEED_FACTOR: Record<Prefs['speed'], number> = { relaxed: 1.6, normal: 1, fast: 0.35 };
+
+/** How long a development card reveal stays on screen. */
+export function revealDuration(speed: Prefs['speed']): number {
+  return Math.min(4200, Math.max(1800, 3200 * SPEED_FACTOR[speed]));
+}
 
 function delayFor(action: Action): number {
   switch (action.type) {
@@ -42,15 +47,22 @@ export function useGameController(initial: GameState, speed: Prefs['speed']): Co
 
   useEffect(() => saveGame(state), [state]);
 
+  // The last card play whose reveal rivals have already waited for.
+  const revealedCard = useRef(initial.lastCardPlay?.id ?? 0);
+
   // Drive computer opponents one action at a time, with a pause between steps.
   useEffect(() => {
     if (state.phase === 'gameOver') return;
     const actor = actingPlayers(state).find((p) => !state.players[p].isHuman);
     if (actor === undefined) return;
     const action = chooseAction(state, actor);
+    const cardId = state.lastCardPlay?.id ?? 0;
+    // Let a freshly played card's reveal finish before the next move.
+    const wait = cardId !== revealedCard.current ? revealDuration(speed) : 0;
     const timer = setTimeout(() => {
+      revealedCard.current = cardId;
       setState((current) => (current === state ? applyAction(current, actor, action) : current));
-    }, delayFor(action) * SPEED_FACTOR[speed]);
+    }, wait + delayFor(action) * SPEED_FACTOR[speed]);
     return () => clearTimeout(timer);
   }, [state, speed]);
 

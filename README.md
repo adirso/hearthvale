@@ -84,6 +84,13 @@ The UI only ever calls `applyAction(state, player, action)`. The engine throws
 - Start screen with New Game, player count (3 or 4: you plus Maren, Tobin and, for four, Ilsa), rival difficulty (Basic, Intermediate or Mixed), your color (six choices), who places first (you, a rival, or random), pace and Resume Game.
 - The start screen previews the island you are about to play. **Shuffle map** rolls a new one, and every new game gets a fresh map.
 - **Build straight from the map:** when you can afford a road, settlement or city, hovering a legal spot shows a see-through preview of the piece, and clicking builds it. Only legal, affordable spots respond. On touch screens, the first tap previews and the second tap builds. The build buttons still work too.
+- **Development card reveals:** whenever anyone plays a card, everyone sees it flip over on the board with a short animation and its own sound:
+  - **Warden:** a mounted knight charges and the raider flees. It shows the warden count, and "Strongest Guard +2" if that card wins the title.
+  - **Embargo:** each victim's cards fly to whoever named the resource, with the amount taken from each player (your own losses in red) and the total collected.
+  - **Bounty:** the two chosen resources drop out of the bank.
+  - **Surveyor:** two roads are drawn in and a survey stake is planted.
+
+  Rivals wait for their reveal to finish before their next move. Reveals never block clicks, and they fade while your pointer is over the board. They don't replay when you resume a saved game.
 - **Sound effects** for dice, roads, settlements, cities, buying and playing cards, trades, the raider, steals, discards, gathering resources, your turn starting, and victory or defeat. Rivals' moves make sound as well. All sounds are generated in the browser with the Web Audio API (no audio files), and a 🔊 toggle mutes them. The setting is remembered.
 - End screen with the winner and a score breakdown (settlements, cities, titles, monuments, total).
 - The game panel shows the board, your cards, development cards, all settlers (VP, hand size, cards, wardens, road length, titles), building costs, the dice, the current turn and the move history.
