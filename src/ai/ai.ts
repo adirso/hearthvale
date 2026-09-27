@@ -535,16 +535,24 @@ export function chooseAction(state: GameState, player: number): Action {
   }
 }
 
+export interface TradeResponse {
+  accept: boolean;
+  /** Short in-character explanation shown to the proposer. */
+  reason: string;
+}
+
 /**
- * Whether an AI player accepts a trade proposed by the current player.
+ * How an AI player answers a trade proposed by the current player.
  * `receive` is what the AI would get, `pay` what it would hand over.
  */
-export function acceptsTrade(state: GameState, player: number, receive: ResourceBag, pay: ResourceBag): boolean {
+export function tradeResponse(state: GameState, player: number, receive: ResourceBag, pay: ResourceBag): TradeResponse {
   const me = state.players[player];
-  if (!hasResources(me.resources, pay)) return false;
-  if (totalCards(receive) === 0 || totalCards(pay) === 0) return false;
-  // Never feed a rival who is about to win.
-  if (victoryPoints(state, state.currentPlayer, false) >= 8) return false;
+  if (totalCards(receive) === 0 || totalCards(pay) === 0) return { accept: false, reason: 'An offer needs both sides.' };
+  // Checked before hand contents so a refusal never reveals what the rival holds.
+  if (victoryPoints(state, state.currentPlayer, false) >= 8) {
+    return { accept: false, reason: "You're too close to winning." };
+  }
+  if (!hasResources(me.resources, pay)) return { accept: false, reason: "Can't spare those cards." };
   const goal = primaryGoal(state, player, me.difficulty);
   const cost = goal ? COSTS[goal.kind] : COSTS.city;
   const before = totalCards(missing(me.resources, cost));
@@ -552,6 +560,17 @@ export function acceptsTrade(state: GameState, player: number, receive: Resource
   for (const r of RESOURCES) after[r] += receive[r] - pay[r];
   const afterMissing = totalCards(missing(after, cost));
   const netCards = totalCards(receive) - totalCards(pay);
-  if (me.difficulty === 'basic') return afterMissing <= before && netCards >= 0;
-  return afterMissing < before || (afterMissing === before && netCards > 0);
+  const accept =
+    me.difficulty === 'basic'
+      ? afterMissing <= before && netCards >= 0
+      : afterMissing < before || (afterMissing === before && netCards > 0);
+  if (accept) {
+    const goalName = goal ? { road: 'a road', settlement: 'a settlement', city: 'a city', devCard: 'a development card' }[goal.kind] : null;
+    return { accept, reason: afterMissing < before && goalName ? `Helps me toward ${goalName}.` : 'Fair enough.' };
+  }
+  return { accept, reason: afterMissing > before ? 'I need those cards myself.' : 'Not worth it for me.' };
+}
+
+export function acceptsTrade(state: GameState, player: number, receive: ResourceBag, pay: ResourceBag): boolean {
+  return tradeResponse(state, player, receive, pay).accept;
 }

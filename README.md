@@ -65,7 +65,7 @@ The UI only ever calls `applyAction(state, player, action)`. The engine throws
 - Roads must connect to your network and cannot pass through a rival's building.
 - Correct costs, and limits of 15 roads, 5 settlements and 4 cities per player.
 - Bank trading at 4:1, 3:1 at generic harbors and 2:1 at matching harbors.
-- Player trades: you can offer any trade to a rival, and the AI decides whether to accept.
+- Player trades: set up an offer once and send it to all rivals. Each one answers accept or decline with a short reason, and you choose which accepting rival to trade with. Changing the offer, or anything else happening in the game, clears old answers.
 - Development deck of 25 cards: 14 Warden, 5 Monument, 2 each of Embargo, Bounty and Surveyor.
   - A card cannot be played on the turn it was bought.
   - At most one card can be played per turn, and it may be played before or after rolling.

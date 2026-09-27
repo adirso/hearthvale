@@ -9,6 +9,7 @@ import {
   type Resource,
   type ResourceBag,
 } from '../engine';
+import type { TradeResponse } from '../ai/ai';
 import { ResourceGlyph } from './art';
 
 function BagEditor({
@@ -187,23 +188,38 @@ export function BankTradePanel({
 export function PlayerTradePanel({
   state,
   humanId,
-  onPropose,
+  onAsk,
+  onTrade,
   onClose,
 }: {
   state: GameState;
   humanId: number;
-  onPropose: (partner: number, give: ResourceBag, get: ResourceBag) => boolean;
+  onAsk: (give: ResourceBag, get: ResourceBag) => Record<number, TradeResponse>;
+  onTrade: (partner: number, give: ResourceBag, get: ResourceBag) => boolean;
   onClose: () => void;
 }) {
-  const [give, setGive] = useState(bag());
-  const [get, setGet] = useState(bag());
+  const [give, setGiveRaw] = useState(bag());
+  const [get, setGetRaw] = useState(bag());
+  // Answers belong to one exact offer at one moment of the game.
+  const [answers, setAnswers] = useState<{ at: number; responses: Record<number, TradeResponse> } | null>(null);
   const me = state.players[humanId];
-  const valid =
-    totalCards(give) > 0 && totalCards(get) > 0 && RESOURCES.every((r) => give[r] === 0 || get[r] === 0);
+  const valid = totalCards(give) > 0 && totalCards(get) > 0 && RESOURCES.every((r) => give[r] === 0 || get[r] === 0);
+  const live = answers && answers.at === state.log.length ? answers.responses : null;
+  const setGive = (b: ResourceBag) => {
+    setGiveRaw(b);
+    setAnswers(null);
+  };
+  const setGet = (b: ResourceBag) => {
+    setGetRaw(b);
+    setAnswers(null);
+  };
+  const rivals = state.players.filter((p) => p.id !== humanId);
+  const accepted = live ? rivals.filter((p) => live[p.id]?.accept).length : 0;
+
   return (
     <section className="panel trade">
       <div className="panel-head">
-        <h2>Offer a trade to a rival</h2>
+        <h2>Offer a trade to rivals</h2>
         <button className="ghost small" onClick={onClose}>
           Close
         </button>
@@ -212,25 +228,45 @@ export function PlayerTradePanel({
       <BagEditor value={give} onChange={setGive} max={me.resources} />
       <p className="label">You want</p>
       <BagEditor value={get} onChange={setGet} />
-      <div className="chip-row">
-        {state.players
-          .filter((p) => p.id !== humanId)
-          .map((p) => (
-            <button
-              key={p.id}
-              className="chip"
-              disabled={!valid}
-              onClick={() => {
-                if (onPropose(p.id, give, get)) {
-                  setGive(bag());
-                  setGet(bag());
-                }
-              }}
-            >
-              <span className="swatch" style={{ background: p.color }} /> Offer to {p.name}
-            </button>
-          ))}
-      </div>
+      <button className="primary wide" disabled={!valid} onClick={() => setAnswers({ at: state.log.length, responses: onAsk(give, get) })}>
+        Offer to all rivals
+      </button>
+
+      {live && (
+        <div className="responses" aria-live="polite">
+          <p className="label">
+            {accepted === 0 ? 'Nobody accepts. Try a different offer.' : `${accepted} of ${rivals.length} accept. Choose who to trade with:`}
+          </p>
+          {rivals.map((p) => {
+            const r = live[p.id];
+            return (
+              <div key={p.id} className={`response ${r.accept ? 'yes' : 'no'}`}>
+                <span className="swatch" style={{ background: p.color }} />
+                <div className="response-text">
+                  <strong>
+                    {p.name} {r.accept ? '✓ accepts' : '✗ declines'}
+                  </strong>
+                  <small>“{r.reason}”</small>
+                </div>
+                {r.accept && (
+                  <button
+                    className="small"
+                    onClick={() => {
+                      if (onTrade(p.id, give, get)) {
+                        setGiveRaw(bag());
+                        setGetRaw(bag());
+                        setAnswers(null);
+                      }
+                    }}
+                  >
+                    Trade with {p.name}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
       <p className="hint">Rivals accept offers that help their own plans, and refuse anyone close to winning.</p>
     </section>
   );

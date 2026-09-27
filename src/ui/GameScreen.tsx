@@ -116,7 +116,7 @@ function quickHint(t: BoardTargets): string | null {
 }
 
 export function GameScreen({ initial, speed, onSpeedChange, sound, onSoundChange, onNewGame, onMenu }: Props) {
-  const { state, humanId, error, notice, dispatch, proposeTrade, clearMessages } = useGameController(initial, speed);
+  const { state, humanId, error, notice, dispatch, askRivals, tradeWith, clearMessages } = useGameController(initial, speed);
   const [rawMode, setMode] = useState<BuildMode>(null);
   const [rawPanel, setPanel] = useState<SidePanel>(null);
   const [rawPicker, setPicker] = useState<'embargo' | 'bounty' | null>(null);
@@ -361,7 +361,7 @@ export function GameScreen({ initial, speed, onSpeedChange, sound, onSoundChange
             />
           )}
           {panel === 'players' && inMain && (
-            <PlayerTradePanel state={state} humanId={humanId} onPropose={proposeTrade} onClose={() => setPanel(null)} />
+            <PlayerTradePanel state={state} humanId={humanId} onAsk={askRivals} onTrade={tradeWith} onClose={() => setPanel(null)} />
           )}
 
           <HandPanel state={state} humanId={humanId} />

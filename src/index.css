@@ -1034,3 +1034,39 @@ legend {
   grid-template-columns: 1fr 1fr;
   gap: 6px;
 }
+
+/* ---------- Trade responses ---------- */
+
+.responses {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.response {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: #fbf5e6;
+  border-left: 4px solid #c9b58a;
+}
+
+.response.yes {
+  background: #eaf4e2;
+  border-left-color: var(--good);
+}
+
+.response.no {
+  opacity: 0.8;
+}
+
+.response-text {
+  flex: 1;
+  display: grid;
+}
+
+.response-text small {
+  color: var(--ink-soft);
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acceptsTrade, chooseAction } from '../src/ai/ai';
+import { acceptsTrade, chooseAction, tradeResponse } from '../src/ai/ai';
 import { simulateGame } from '../src/ai/simulate';
 import {
   actingPlayers,
@@ -58,6 +58,20 @@ describe('AI opponents', () => {
     expect(acceptsTrade(s, 1, bag({ timber: 3 }), bag({ harvest: 1 }))).toBe(false);
     for (let v = 0, n = 0; n < 8; v += 7, n++) placeSettlement(s, 0, v);
     expect(acceptsTrade(s, 1, bag({ timber: 1, fleece: 1 }), bag({ stone: 1 }))).toBe(false);
+  });
+
+  it('explains each answer without revealing hands to a near-winner', () => {
+    const s = mainPhaseGame();
+    s.players[1].difficulty = 'intermediate';
+    give(s, 1, { stone: 3 });
+    const yes = tradeResponse(s, 1, bag({ fleece: 1 }), bag({ stone: 1 }));
+    expect(yes).toEqual({ accept: true, reason: 'Helps me toward a development card.' });
+    expect(tradeResponse(s, 1, bag({ fleece: 1 }), bag({ clay: 1 }))).toEqual({ accept: false, reason: "Can't spare those cards." });
+    expect(tradeResponse(s, 1, bag({ timber: 1 }), bag({ stone: 2 })).accept).toBe(false);
+    for (let v = 0, n = 0; n < 8; v += 7, n++) placeSettlement(s, 0, v);
+    // Same refusal whether or not the rival holds the cards.
+    expect(tradeResponse(s, 1, bag({ fleece: 1 }), bag({ clay: 1 })).reason).toBe("You're too close to winning.");
+    expect(tradeResponse(s, 1, bag({ fleece: 1 }), bag({ stone: 1 })).reason).toBe("You're too close to winning.");
   });
 
   it('resumes deterministically from a serialized save at every step', () => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { acceptsTrade, chooseAction } from '../ai/ai';
+import { chooseAction, tradeResponse, type TradeResponse } from '../ai/ai';
 import { actingPlayers, applyAction, IllegalActionError, type Action, type GameState, type ResourceBag } from '../engine';
 import { saveGame, type Prefs } from './storage';
 
@@ -27,7 +27,10 @@ export interface Controller {
   error: string | null;
   notice: string | null;
   dispatch: (action: Action) => boolean;
-  proposeTrade: (partner: number, give: ResourceBag, get: ResourceBag) => boolean;
+  /** Every rival's answer to an offer, keyed by player id. Nothing changes hands yet. */
+  askRivals: (give: ResourceBag, get: ResourceBag) => Record<number, TradeResponse>;
+  /** Complete the trade with one rival who accepted. */
+  tradeWith: (partner: number, give: ResourceBag, get: ResourceBag) => boolean;
   clearMessages: () => void;
 }
 
@@ -68,15 +71,25 @@ export function useGameController(initial: GameState, speed: Prefs['speed']): Co
     [state, humanId],
   );
 
-  const proposeTrade = useCallback(
+  const askRivals = useCallback(
+    (give: ResourceBag, get: ResourceBag) => {
+      const answers: Record<number, TradeResponse> = {};
+      for (const p of state.players) if (p.id !== humanId) answers[p.id] = tradeResponse(state, p.id, give, get);
+      return answers;
+    },
+    [state, humanId],
+  );
+
+  const tradeWith = useCallback(
     (partner: number, give: ResourceBag, get: ResourceBag) => {
       const name = state.players[partner].name;
-      if (!acceptsTrade(state, partner, give, get)) {
-        setNotice(`${name} declines your offer.`);
+      // Re-check against the current state in case anything changed since asking.
+      if (!tradeResponse(state, partner, give, get).accept) {
+        setNotice(`${name} no longer accepts that offer.`);
         return false;
       }
       const ok = dispatch({ type: 'playerTrade', partner, give, get });
-      if (ok) setNotice(`${name} accepts the trade.`);
+      if (ok) setNotice(`Traded with ${name}.`);
       return ok;
     },
     [state, dispatch],
@@ -87,5 +100,5 @@ export function useGameController(initial: GameState, speed: Prefs['speed']): Co
     setNotice(null);
   }, []);
 
-  return { state, humanId, error, notice, dispatch, proposeTrade, clearMessages };
+  return { state, humanId, error, notice, dispatch, askRivals, tradeWith, clearMessages };
 }
