@@ -10,10 +10,11 @@ export interface Prefs {
   sound: boolean;
   /** Id from PLAYER_COLORS. */
   color: string;
-  firstPlayer: 'random' | 'you' | 'maren' | 'tobin';
+  playerCount: 3 | 4;
+  firstPlayer: 'random' | 'you' | 'rival1' | 'rival2' | 'rival3';
 }
 
-export const DEFAULT_PREFS: Prefs = { name: 'You', difficulty: 'intermediate', speed: 'normal', sound: true, color: 'crimson', firstPlayer: 'random' };
+export const DEFAULT_PREFS: Prefs = { name: 'You', difficulty: 'intermediate', speed: 'normal', sound: true, color: 'crimson', playerCount: 3, firstPlayer: 'random' };
 
 export function saveGame(state: GameState) {
   try {
@@ -46,7 +47,13 @@ export function clearGame() {
 export function loadPrefs(): Prefs {
   try {
     const raw = localStorage.getItem(PREFS_KEY);
-    return raw ? { ...DEFAULT_PREFS, ...(JSON.parse(raw) as Partial<Prefs>) } : DEFAULT_PREFS;
+    if (!raw) return DEFAULT_PREFS;
+    const prefs = { ...DEFAULT_PREFS, ...(JSON.parse(raw) as Partial<Prefs>) };
+    // Older saves named rivals directly.
+    const legacy: Record<string, Prefs['firstPlayer']> = { maren: 'rival1', tobin: 'rival2' };
+    prefs.firstPlayer = legacy[prefs.firstPlayer] ?? prefs.firstPlayer;
+    if (prefs.playerCount !== 3 && prefs.playerCount !== 4) prefs.playerCount = 3;
+    return prefs;
   } catch {
     return DEFAULT_PREFS;
   }

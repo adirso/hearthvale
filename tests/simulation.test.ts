@@ -33,4 +33,21 @@ describe('full AI games', () => {
       "playBounty", "playSurveyor", "placeFreeRoad", "bankTrade", "moveRaider", "steal", "discard",
     ]) expect(totals[type] ?? 0, type).toBeGreaterThan(0);
   }, 120_000);
+
+  it('four-player games also always reach a winner', () => {
+    const lineups: Difficulty[][] = [
+      ['intermediate', 'intermediate', 'intermediate', 'intermediate'],
+      ['basic', 'basic', 'basic', 'basic'],
+      ['basic', 'intermediate', 'basic', 'intermediate'],
+    ];
+    const turns: number[] = [];
+    for (let seed = 101; seed <= 130; seed++) {
+      const result = simulateGame(seed, lineups[seed % lineups.length]);
+      expect(result.state.phase, `seed ${seed} did not finish`).toBe('gameOver');
+      expect(result.state.players).toHaveLength(4);
+      expect(victoryPoints(result.state, result.winner!)).toBeGreaterThanOrEqual(10);
+      turns.push(result.turns);
+    }
+    console.log(`4p avg turns ${(turns.reduce((a, b) => a + b, 0) / turns.length).toFixed(1)}, max ${Math.max(...turns)}`);
+  }, 120_000);
 });

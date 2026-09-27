@@ -1028,3 +1028,9 @@ legend {
 .map-preview .board {
   max-height: 300px;
 }
+
+.count-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}

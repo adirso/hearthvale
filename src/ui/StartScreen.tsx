@@ -15,7 +15,7 @@ interface Props {
 const DIFFICULTIES: { id: Prefs['difficulty']; label: string; blurb: string }[] = [
   { id: 'basic', label: 'Basic', blurb: 'Rivals build what they can and pick spots by raw yield.' },
   { id: 'intermediate', label: 'Intermediate', blurb: 'Rivals plan goals, weigh scarcity, race for titles and aim the raider at the leader.' },
-  { id: 'mixed', label: 'Mixed', blurb: 'One rival of each kind.' },
+  { id: 'mixed', label: 'Mixed', blurb: 'A mix of basic and intermediate rivals.' },
 ];
 
 export function StartScreen({ prefs, saved, onStart, onResume }: Props) {
@@ -23,10 +23,13 @@ export function StartScreen({ prefs, saved, onStart, onResume }: Props) {
   const [difficulty, setDifficulty] = useState(prefs.difficulty);
   const [speed, setSpeed] = useState(prefs.speed);
   const [color, setColor] = useState(prefs.color);
+  const [playerCount, setPlayerCount] = useState(prefs.playerCount);
   const [firstPlayer, setFirstPlayer] = useState(prefs.firstPlayer);
   const [seed, setSeed] = useState(randomSeed);
   const [focus, setFocus] = useState<number | null>(null);
-  const chosen: Prefs = { ...prefs, name: name.trim() || 'You', difficulty, speed, color, firstPlayer };
+  const chosen: Prefs = { ...prefs, name: name.trim() || 'You', difficulty, speed, color, playerCount,
+    firstPlayer: firstPlayer === 'rival3' && playerCount === 3 ? 'random' : firstPlayer,
+  };
   // The map depends only on the seed, so this preview is exactly the island you will play.
   const preview = useMemo(() => newGameFrom({ ...prefs, firstPlayer: 'you' }, seed), [prefs, seed]);
   const resumable = saved && saved.phase !== 'gameOver' ? saved : null;
@@ -56,6 +59,20 @@ export function StartScreen({ prefs, saved, onStart, onResume }: Props) {
             Your name
             <input value={name} maxLength={16} onChange={(e) => setName(e.target.value)} />
           </label>
+          <fieldset>
+            <legend>Players</legend>
+            <div className="count-row">
+              {([3, 4] as const).map((n) => (
+                <label key={n} className={`radio ${playerCount === n ? 'selected' : ''}`}>
+                  <input type="radio" name="players" checked={playerCount === n} onChange={() => setPlayerCount(n)} />
+                  <span>
+                    <strong>{n} players</strong>
+                    <small>You and {n - 1} rivals: {RIVAL_NAMES.slice(0, n - 1).join(', ')}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <fieldset>
             <legend>Rival difficulty</legend>
             {DIFFICULTIES.map((d) => (
@@ -87,11 +104,14 @@ export function StartScreen({ prefs, saved, onStart, onResume }: Props) {
           </fieldset>
           <label>
             Who places first
-            <select value={firstPlayer} onChange={(e) => setFirstPlayer(e.target.value as Prefs['firstPlayer'])}>
+            <select value={chosen.firstPlayer} onChange={(e) => setFirstPlayer(e.target.value as Prefs['firstPlayer'])}>
               <option value="random">Random</option>
               <option value="you">You</option>
-              <option value="maren">{RIVAL_NAMES[0]}</option>
-              <option value="tobin">{RIVAL_NAMES[1]}</option>
+              {RIVAL_NAMES.slice(0, playerCount - 1).map((n, i) => (
+                <option key={n} value={`rival${i + 1}`}>
+                  {n}
+                </option>
+              ))}
             </select>
           </label>
           <label>

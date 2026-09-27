@@ -11,26 +11,38 @@ export const PLAYER_COLORS = [
   { id: 'slate', label: 'Slate', hex: '#34495e' },
 ] as const;
 
-export const RIVAL_NAMES = ['Maren', 'Tobin'] as const;
+export const RIVAL_NAMES = ['Maren', 'Tobin', 'Ilsa'] as const;
 
 export function colorHex(id: string): string {
   return (PLAYER_COLORS.find((c) => c.id === id) ?? PLAYER_COLORS[0]).hex;
 }
 
-/** Seat order is fixed (you, Maren, Tobin); `firstPlayer` picks who places first. */
+/** Seat 0 is you, then rivals in RIVAL_NAMES order; `firstPlayer` picks who places first. */
 export function newGameFrom(prefs: Prefs, seed?: number): GameState {
-  const rivalDifficulty: [Difficulty, Difficulty] =
-    prefs.difficulty === 'mixed' ? ['basic', 'intermediate'] : [prefs.difficulty, prefs.difficulty];
+  const rivals = prefs.playerCount - 1;
+  // "Mixed" alternates basic and intermediate rivals.
+  const rivalDifficulty = (i: number): Difficulty =>
+    prefs.difficulty === 'mixed' ? (i % 2 === 0 ? 'basic' : 'intermediate') : prefs.difficulty;
   const humanColor = colorHex(prefs.color);
   const rivalColors = PLAYER_COLORS.map((c) => c.hex).filter((h) => h !== humanColor);
-  const first = { random: undefined, you: 0, maren: 1, tobin: 2 }[prefs.firstPlayer];
   return createGame({
     seed,
-    firstPlayer: first,
+    firstPlayer: firstSeat(prefs),
     players: [
       { name: prefs.name, isHuman: true, difficulty: 'intermediate', color: humanColor },
-      { name: RIVAL_NAMES[0], isHuman: false, difficulty: rivalDifficulty[0], color: rivalColors[0] },
-      { name: RIVAL_NAMES[1], isHuman: false, difficulty: rivalDifficulty[1], color: rivalColors[1] },
+      ...Array.from({ length: rivals }, (_, i) => ({
+        name: RIVAL_NAMES[i],
+        isHuman: false,
+        difficulty: rivalDifficulty(i),
+        color: rivalColors[i],
+      })),
     ],
   });
+}
+
+/** Seat index of the first player, or undefined for random. */
+export function firstSeat(prefs: Prefs): number | undefined {
+  if (prefs.firstPlayer === 'random') return undefined;
+  const seat = prefs.firstPlayer === 'you' ? 0 : Number(prefs.firstPlayer.replace('rival', ''));
+  return seat < prefs.playerCount ? seat : undefined;
 }

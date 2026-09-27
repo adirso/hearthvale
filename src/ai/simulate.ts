@@ -18,7 +18,7 @@ export function simulateGame(seed: number, difficulties: Difficulty[], maxAction
       name: `AI ${i + 1}`,
       isHuman: false,
       difficulty,
-      color: ['#b03a2e', '#1f618d', '#b7950b'][i % 3],
+      color: ['#b03a2e', '#1f618d', '#b7950b', '#6c3483'][i],
     })),
   });
   let actions = 0;

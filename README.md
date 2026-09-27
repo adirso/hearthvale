@@ -1,7 +1,7 @@
 # Hearthvale
 
 A browser strategy game of settling, trading and building on a randomly generated
-island. You play against two computer rivals. Everything runs locally: no server,
+island. You play against two or three computer rivals (3 or 4 players). Everything runs locally: no server,
 no account, no external services. The name, artwork (hand-written SVG) and all text
 are original.
 
@@ -81,7 +81,7 @@ The UI only ever calls `applyAction(state, player, action)`. The engine throws
 - Both levels pause between actions (adjustable pace: relaxed, normal or fast). New pieces animate in, the dice tumble, and the prompt bar and Chronicle log narrate each move.
 
 **Interface**
-- Start screen with New Game, rival difficulty (Basic, Intermediate or Mixed), your color (six choices), who places first (you, a rival, or random), pace and Resume Game.
+- Start screen with New Game, player count (3 or 4: you plus Maren, Tobin and, for four, Ilsa), rival difficulty (Basic, Intermediate or Mixed), your color (six choices), who places first (you, a rival, or random), pace and Resume Game.
 - The start screen previews the island you are about to play. **Shuffle map** rolls a new one, and every new game gets a fresh map.
 - **Build straight from the map:** when you can afford a road, settlement or city, hovering a legal spot shows a see-through preview of the piece, and clicking builds it. Only legal, affordable spots respond. On touch screens, the first tap previews and the second tap builds. The build buttons still work too.
 - **Sound effects** for dice, roads, settlements, cities, buying and playing cards, trades, the raider, steals, discards, gathering resources, your turn starting, and victory or defeat. Rivals' moves make sound as well. All sounds are generated in the browser with the Web Audio API (no audio files), and a 🔊 toggle mutes them. The setting is remembered.
@@ -117,6 +117,7 @@ The UI only ever calls `applyAction(state, player, action)`. The engine throws
 - **The 6/8 rule is a layout constraint.** Keeping 6s and 8s apart is a common layout convention, not a base-game requirement.
 - **Automatic steal.** When exactly one rival can be robbed, the steal happens automatically.
 - **Free roads are skipped when blocked.** If no legal path exists, Surveyor ends early.
+- **Four players at most.** The base island is used for both table sizes. There is no 5–6 player extension.
 - **Single human seat.** There is one human player (no hot-seat multiplayer) and no undo.
 
 No base-game rule needed to finish a game is missing.

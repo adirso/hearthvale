@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyAction,
   bag,
+  createGame,
   EDGE_COUNT,
   IllegalActionError,
   isValidLayout,
@@ -22,7 +23,7 @@ import {
   type Resource,
   type ResourceBag,
 } from '../src/engine';
-import { findPath, give, hexWithToken, mainPhaseGame, newGame, placeRoad, placeSettlement } from './helpers';
+import { findPath, give, hexWithToken, mainPhaseGame, newGame, placeRoad, placeSettlement, TEST_PLAYERS } from './helpers';
 
 function expectIllegal(fn: () => unknown, message?: RegExp) {
   expect(fn).toThrow(IllegalActionError);
@@ -98,6 +99,21 @@ describe('initial placement', () => {
     expect(s.phase).toBe('roll');
     expect(s.currentPlayer).toBe(0);
     expect(secondSettlements).toHaveLength(3);
+  });
+
+  it('supports four settlers and rejects other table sizes', () => {
+    const four = [...TEST_PLAYERS, { name: 'Dara', isHuman: false, difficulty: 'basic' as const, color: '#16a085' }];
+    let s = createGame({ seed: 5, players: four, firstPlayer: 1 });
+    const order: number[] = [];
+    while (s.phase === 'setup') {
+      order.push(s.currentPlayer);
+      s = applyAction(s, s.currentPlayer, { type: 'placeSetupSettlement', vertex: legalSetupSettlementVertices(s)[0] });
+      s = applyAction(s, s.currentPlayer, { type: 'placeSetupRoad', edge: legalSetupRoadEdges(s)[0] });
+    }
+    expect(order).toEqual([1, 2, 3, 0, 0, 3, 2, 1]);
+    expect(s.currentPlayer).toBe(1);
+    expect(() => createGame({ seed: 5, players: TEST_PLAYERS.slice(0, 2) })).toThrow();
+    expect(() => createGame({ seed: 5, players: [...four, four[0]] })).toThrow();
   });
 
   it('requires the setup road to touch the settlement just placed', () => {

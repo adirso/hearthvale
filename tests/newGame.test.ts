@@ -28,8 +28,8 @@ describe('new game options', () => {
   it('lets the chosen player place first, with the snake order following', () => {
     const cases = [
       ['you', [0, 1, 2, 2, 1, 0]],
-      ['maren', [1, 2, 0, 0, 2, 1]],
-      ['tobin', [2, 0, 1, 1, 0, 2]],
+      ['rival1', [1, 2, 0, 0, 2, 1]],
+      ['rival2', [2, 0, 1, 1, 0, 2]],
     ] as const;
     for (const [firstPlayer, order] of cases) {
       const s = newGameFrom({ ...DEFAULT_PREFS, firstPlayer });
@@ -38,5 +38,21 @@ describe('new game options', () => {
     }
     const starters = new Set(Array.from({ length: 40 }, (_, i) => newGameFrom({ ...DEFAULT_PREFS, firstPlayer: 'random' }, i).currentPlayer));
     expect(starters.size).toBe(3);
+  });
+
+  it('seats four settlers with distinct colours and a snake order', () => {
+    const s = newGameFrom({ ...DEFAULT_PREFS, playerCount: 4, firstPlayer: 'rival3' });
+    expect(s.players.map((p) => p.name)).toEqual(['You', 'Maren', 'Tobin', 'Ilsa']);
+    expect(s.players.filter((p) => p.isHuman)).toHaveLength(1);
+    expect(new Set(s.players.map((p) => p.color)).size).toBe(4);
+    expect(s.setup!.order).toEqual([3, 0, 1, 2, 2, 1, 0, 3]);
+    // Asking for a fourth-seat starter in a 3-player game falls back to random.
+    const three = newGameFrom({ ...DEFAULT_PREFS, playerCount: 3, firstPlayer: 'rival3' });
+    expect(three.players).toHaveLength(3);
+  });
+
+  it('alternates rival levels for a mixed table', () => {
+    const s = newGameFrom({ ...DEFAULT_PREFS, playerCount: 4, difficulty: 'mixed' });
+    expect(s.players.slice(1).map((p) => p.difficulty)).toEqual(['basic', 'intermediate', 'basic']);
   });
 });

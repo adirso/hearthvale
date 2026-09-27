@@ -49,6 +49,7 @@ export interface NewGameOptions {
 }
 
 export function createGame(options: NewGameOptions): GameState {
+  if (options.players.length < 3 || options.players.length > 4) throw new Error('Hearthvale is played by 3 or 4 players');
   const rng = { rngState: (options.seed ?? randomSeed()) | 0 };
   const hexes = generateHexes(rng);
   const ports = generatePorts(rng);
