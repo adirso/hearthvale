@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { chooseAction, tradeResponse, type TradeResponse } from '../ai/ai';
-import { actingPlayers, applyAction, IllegalActionError, type Action, type GameState, type ResourceBag } from '../engine';
+import { chooseAction } from '../ai/ai';
+import { actingPlayers, applyAction, IllegalActionError, type Action, type GameState } from '../engine';
 import { saveGame, type Prefs } from './storage';
 
 const SPEED_FACTOR: Record<Prefs['speed'], number> = { relaxed: 1.6, normal: 1, fast: 0.35 };
@@ -21,6 +21,11 @@ function delayFor(action: Action): number {
       return 800;
     case 'discard':
       return 500;
+    case 'respondToOffer':
+      return 650;
+    case 'confirmTrade':
+    case 'cancelOffer':
+      return 850;
     default:
       return 1000;
   }
@@ -32,10 +37,6 @@ export interface Controller {
   error: string | null;
   notice: string | null;
   dispatch: (action: Action) => boolean;
-  /** Every rival's answer to an offer, keyed by player id. Nothing changes hands yet. */
-  askRivals: (give: ResourceBag, get: ResourceBag) => Record<number, TradeResponse>;
-  /** Complete the trade with one rival who accepted. */
-  tradeWith: (partner: number, give: ResourceBag, get: ResourceBag) => boolean;
   /** Show a short message to the player. */
   announce: (message: string) => void;
   clearMessages: () => void;
@@ -85,34 +86,10 @@ export function useGameController(initial: GameState, speed: Prefs['speed']): Co
     [state, humanId],
   );
 
-  const askRivals = useCallback(
-    (give: ResourceBag, get: ResourceBag) => {
-      const answers: Record<number, TradeResponse> = {};
-      for (const p of state.players) if (p.id !== humanId) answers[p.id] = tradeResponse(state, p.id, give, get);
-      return answers;
-    },
-    [state, humanId],
-  );
-
-  const tradeWith = useCallback(
-    (partner: number, give: ResourceBag, get: ResourceBag) => {
-      const name = state.players[partner].name;
-      // Re-check against the current state in case anything changed since asking.
-      if (!tradeResponse(state, partner, give, get).accept) {
-        setNotice(`${name} no longer accepts that offer.`);
-        return false;
-      }
-      const ok = dispatch({ type: 'playerTrade', partner, give, get });
-      if (ok) setNotice(`Traded with ${name}.`);
-      return ok;
-    },
-    [state, dispatch],
-  );
-
   const clearMessages = useCallback(() => {
     setError(null);
     setNotice(null);
   }, []);
 
-  return { state, humanId, error, notice, dispatch, askRivals, tradeWith, announce: setNotice, clearMessages };
+  return { state, humanId, error, notice, dispatch, announce: setNotice, clearMessages };
 }

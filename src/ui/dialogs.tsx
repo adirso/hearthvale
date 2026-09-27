@@ -8,9 +8,10 @@ import {
   type GameState,
   type Resource,
   type ResourceBag,
+  type TradeOffer,
 } from '../engine';
-import type { TradeResponse } from '../ai/ai';
 import { ResourceGlyph } from './art';
+import { BagView } from './panels';
 
 function BagEditor({
   value,
@@ -185,36 +186,157 @@ export function BankTradePanel({
   );
 }
 
+function AnswerList({ state, offer, humanId, onPick }: {
+  state: GameState;
+  offer: TradeOffer;
+  humanId: number;
+  onPick?: (partner: number) => void;
+}) {
+  return (
+    <div className="responses" aria-live="polite">
+      {state.players
+        .filter((p) => p.id !== offer.from)
+        .map((p) => {
+          const answer = offer.responses[p.id];
+          const reason = offer.reasons[p.id];
+          return (
+            <div key={p.id} className={`response ${answer === 'accept' ? 'yes' : answer === 'decline' ? 'no' : 'wait'}`}>
+              <span className="swatch" style={{ background: p.color }} />
+              <div className="response-text">
+                <strong>
+                  {p.id === humanId ? 'You' : p.name}{' '}
+                  {answer === 'pending' ? (
+                    <span className="thinking">thinking…</span>
+                  ) : (
+                    `${answer === 'accept' ? '✓ accept' : '✗ decline'}${p.id === humanId ? '' : 's'}`
+                  )}
+                </strong>
+                {reason && <small>“{reason}”</small>}
+              </div>
+              {onPick && answer === 'accept' && (
+                <button className="small" onClick={() => onPick(p.id)}>
+                  Trade with {p.name}
+                </button>
+              )}
+            </div>
+          );
+        })}
+    </div>
+  );
+}
+
+function OfferTerms({ state, offer, humanId }: { state: GameState; offer: TradeOffer; humanId: number }) {
+  const from = offer.from === humanId ? 'You' : state.players[offer.from].name;
+  return (
+    <div className="offer-terms">
+      <div>
+        <small>{from} give{offer.from === humanId ? '' : 's'}</small>
+        <BagView value={offer.give} size={24} />
+      </div>
+      <span className="offer-arrow">⇄</span>
+      <div>
+        <small>{offer.from === humanId ? 'You want' : 'Wants'}</small>
+        <BagView value={offer.get} size={24} />
+      </div>
+    </div>
+  );
+}
+
+/** A rival's offer that the human must answer. */
+export function IncomingOfferDialog({
+  state,
+  humanId,
+  onAnswer,
+}: {
+  state: GameState;
+  humanId: number;
+  onAnswer: (accept: boolean) => void;
+}) {
+  const offer = state.tradeOffer!;
+  const from = state.players[offer.from];
+  const canPay = RESOURCES.every((r) => state.players[humanId].resources[r] >= offer.get[r]);
+  return (
+    <Modal title={`${from.name} offers a trade`}>
+      <OfferTerms state={state} offer={offer} humanId={humanId} />
+      <p className="muted">The offer went to everyone. If several accept, {from.name} picks the partner.</p>
+      <div className="modal-actions">
+        <button className="primary" disabled={!canPay} onClick={() => onAnswer(true)}>
+          Accept
+        </button>
+        <button onClick={() => onAnswer(false)}>Decline</button>
+      </div>
+      {!canPay && <p className="hint">You do not have the cards asked for.</p>}
+    </Modal>
+  );
+}
+
+/** Live view of an offer between rivals (or one the human already answered). */
+export function OfferWatch({ state, humanId }: { state: GameState; humanId: number }) {
+  const offer = state.tradeOffer!;
+  const from = state.players[offer.from];
+  return (
+    <section className="panel offer-watch" style={{ borderColor: from.color }}>
+      <h2>
+        <span className="swatch" style={{ background: from.color }} /> {from.name} proposes a trade
+      </h2>
+      <OfferTerms state={state} offer={offer} humanId={humanId} />
+      <AnswerList state={state} offer={offer} humanId={humanId} />
+    </section>
+  );
+}
+
 export function PlayerTradePanel({
   state,
   humanId,
-  onAsk,
-  onTrade,
+  onOffer,
+  onConfirm,
+  onWithdraw,
   onClose,
 }: {
   state: GameState;
   humanId: number;
-  onAsk: (give: ResourceBag, get: ResourceBag) => Record<number, TradeResponse>;
-  onTrade: (partner: number, give: ResourceBag, get: ResourceBag) => boolean;
+  onOffer: (give: ResourceBag, get: ResourceBag) => void;
+  onConfirm: (partner: number) => void;
+  onWithdraw: () => void;
   onClose: () => void;
 }) {
-  const [give, setGiveRaw] = useState(bag());
-  const [get, setGetRaw] = useState(bag());
-  // Answers belong to one exact offer at one moment of the game.
-  const [answers, setAnswers] = useState<{ at: number; responses: Record<number, TradeResponse> } | null>(null);
+  const [give, setGive] = useState(bag());
+  const [get, setGet] = useState(bag());
   const me = state.players[humanId];
+  const offer = state.tradeOffer && state.tradeOffer.from === humanId ? state.tradeOffer : null;
   const valid = totalCards(give) > 0 && totalCards(get) > 0 && RESOURCES.every((r) => give[r] === 0 || get[r] === 0);
-  const live = answers && answers.at === state.log.length ? answers.responses : null;
-  const setGive = (b: ResourceBag) => {
-    setGiveRaw(b);
-    setAnswers(null);
-  };
-  const setGet = (b: ResourceBag) => {
-    setGetRaw(b);
-    setAnswers(null);
-  };
-  const rivals = state.players.filter((p) => p.id !== humanId);
-  const accepted = live ? rivals.filter((p) => live[p.id]?.accept).length : 0;
+
+  if (offer) {
+    const answers = Object.values(offer.responses);
+    const waiting = answers.filter((a) => a === 'pending').length;
+    const accepted = answers.filter((a) => a === 'accept').length;
+    return (
+      <section className="panel trade">
+        <h2>Your offer to all rivals</h2>
+        <OfferTerms state={state} offer={offer} humanId={humanId} />
+        <p className="label">
+          {waiting > 0
+            ? `Waiting for ${waiting} answer${waiting > 1 ? 's' : ''}…`
+            : accepted === 0
+              ? 'Nobody accepts. Withdraw and try a different offer.'
+              : `${accepted} accept. Choose who to trade with:`}
+        </p>
+        <AnswerList
+          state={state}
+          offer={offer}
+          humanId={humanId}
+          onPick={(p) => {
+            onConfirm(p);
+            setGive(bag());
+            setGet(bag());
+          }}
+        />
+        <button className="ghost" onClick={onWithdraw}>
+          Withdraw offer
+        </button>
+      </section>
+    );
+  }
 
   return (
     <section className="panel trade">
@@ -228,45 +350,9 @@ export function PlayerTradePanel({
       <BagEditor value={give} onChange={setGive} max={me.resources} />
       <p className="label">You want</p>
       <BagEditor value={get} onChange={setGet} />
-      <button className="primary wide" disabled={!valid} onClick={() => setAnswers({ at: state.log.length, responses: onAsk(give, get) })}>
+      <button className="primary wide" disabled={!valid} onClick={() => onOffer(give, get)}>
         Offer to all rivals
       </button>
-
-      {live && (
-        <div className="responses" aria-live="polite">
-          <p className="label">
-            {accepted === 0 ? 'Nobody accepts. Try a different offer.' : `${accepted} of ${rivals.length} accept. Choose who to trade with:`}
-          </p>
-          {rivals.map((p) => {
-            const r = live[p.id];
-            return (
-              <div key={p.id} className={`response ${r.accept ? 'yes' : 'no'}`}>
-                <span className="swatch" style={{ background: p.color }} />
-                <div className="response-text">
-                  <strong>
-                    {p.name} {r.accept ? '✓ accepts' : '✗ declines'}
-                  </strong>
-                  <small>“{r.reason}”</small>
-                </div>
-                {r.accept && (
-                  <button
-                    className="small"
-                    onClick={() => {
-                      if (onTrade(p.id, give, get)) {
-                        setGiveRaw(bag());
-                        setGetRaw(bag());
-                        setAnswers(null);
-                      }
-                    }}
-                  >
-                    Trade with {p.name}
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
       <p className="hint">Rivals accept offers that help their own plans, and refuse anyone close to winning.</p>
     </section>
   );

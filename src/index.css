@@ -1555,3 +1555,60 @@ legend {
     box-shadow: 0 0 0 3px var(--warn);
   }
 }
+
+/* ---------- Trade offers ---------- */
+
+.offer-terms {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: #fffaf0;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.offer-terms > div {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+}
+
+.offer-terms small {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.offer-arrow {
+  font-size: 1.4rem;
+  color: var(--ink-soft);
+}
+
+.offer-watch {
+  border-left: 5px solid;
+  animation: rise-in 0.3s ease;
+}
+
+.offer-watch h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.response.wait {
+  opacity: 0.85;
+}
+
+.thinking {
+  font-weight: 400;
+  font-style: italic;
+  color: var(--ink-soft);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes rise-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}

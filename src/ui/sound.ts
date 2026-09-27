@@ -14,6 +14,7 @@ export type SoundName =
   | 'bounty'
   | 'surveyor'
   | 'trade'
+  | 'offer'
   | 'raider'
   | 'steal'
   | 'discard'
@@ -166,6 +167,14 @@ const SOUNDS: Record<SoundName, (a: { ctx: AudioContext; out: GainNode }) => voi
       tone(a, 190, t, 0.16, { type: 'triangle', endFreq: 80, volume: 0.4 });
       noise(a, t, 0.06, { freq: 900, q: 2, volume: 0.3 });
     });
+  },
+  offer: (a) => {
+    // A knock at the door.
+    [0, 0.14].forEach((t) => {
+      tone(a, 220, t, 0.09, { type: 'triangle', endFreq: 150, volume: 0.35 });
+      noise(a, t, 0.04, { freq: 1100, q: 3, volume: 0.25 });
+    });
+    tone(a, 880, 0.32, 0.25, { type: 'sine', volume: 0.12 });
   },
   trade: (a) => {
     // Coins changing hands.

@@ -93,6 +93,21 @@ export interface Steal {
   resource: Resource;
 }
 
+export type OfferAnswer = 'pending' | 'accept' | 'decline';
+
+/** An open trade proposal from the current player to everyone else. */
+export interface TradeOffer {
+  id: number;
+  from: number;
+  /** What the proposer hands over. */
+  give: ResourceBag;
+  /** What the proposer wants in return. */
+  get: ResourceBag;
+  responses: Record<number, OfferAnswer>;
+  /** Optional short explanations from responders, for display. */
+  reasons: Record<number, string>;
+}
+
 export interface LogEntry {
   turn: number;
   player: number | null;
@@ -142,6 +157,12 @@ export interface GameState {
   lastCardPlay?: CardPlay | null;
   /** Absent in saves from older versions. */
   lastSteal?: Steal | null;
+  /** Open trade offer; while set, only offer actions are allowed. Absent in older saves. */
+  tradeOffer?: TradeOffer | null;
+  /** Offers made during the current turn (lets the AI avoid spamming). */
+  offersThisTurn?: number;
+  /** Increments with every offer made in the game. */
+  offerCount?: number;
   /** Most recent board change, for UI highlighting. */
   lastChange: { kind: 'vertex' | 'edge' | 'hex'; id: number } | null;
 }
@@ -164,6 +185,10 @@ export type Action =
   | { type: 'placeFreeRoad'; edge: number }
   | { type: 'bankTrade'; give: Resource; get: Resource }
   | { type: 'playerTrade'; partner: number; give: ResourceBag; get: ResourceBag }
+  | { type: 'offerTrade'; give: ResourceBag; get: ResourceBag }
+  | { type: 'respondToOffer'; player: number; accept: boolean; reason?: string }
+  | { type: 'confirmTrade'; partner: number }
+  | { type: 'cancelOffer' }
   | { type: 'endTurn' };
 
 export class IllegalActionError extends Error {

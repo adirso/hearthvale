@@ -110,6 +110,9 @@ export function createGame(options: NewGameOptions): GameState {
     tradesThisTurn: 0,
     lastCardPlay: null,
     lastSteal: null,
+    tradeOffer: null,
+    offersThisTurn: 0,
+    offerCount: 0,
     lastChange: null,
   };
   log(state, null, `A new island rises. ${players[first].name} places first.`);
@@ -327,6 +330,14 @@ function checkVictory(state: GameState) {
 export function actingPlayers(state: GameState): number[] {
   if (state.phase === 'gameOver') return [];
   if (state.phase === 'discard') return Object.keys(state.pendingDiscards).map(Number);
+  const offer = state.tradeOffer;
+  if (offer) {
+    // Everyone answers first; then the proposer picks a partner or withdraws.
+    const pending = Object.entries(offer.responses)
+      .filter(([, a]) => a === 'pending')
+      .map(([p]) => Number(p));
+    return pending.length ? pending : [offer.from];
+  }
   return [state.currentPlayer];
 }
 
@@ -338,7 +349,7 @@ export function canPlayDevCard(state: GameState, player: number, card: DevCard):
   if (card === 'monument') return false;
   if (player !== state.currentPlayer) return false;
   if (state.phase !== 'roll' && state.phase !== 'main') return false;
-  if (state.devCardPlayedThisTurn) return false;
+  if (state.devCardPlayedThisTurn || state.tradeOffer) return false;
   return state.players[player].devCards.includes(card);
 }
 
@@ -424,6 +435,17 @@ export function applyAction(prev: GameState, actor: number, action: Action): Gam
   if (action.type === 'discard') {
     handleDiscard(state, actor, action.player, action.cards);
     return state;
+  }
+  if (action.type === 'respondToOffer') {
+    handleOfferResponse(state, actor, action.player, action.accept, action.reason);
+    return state;
+  }
+  const openOffer = state.tradeOffer;
+  if (openOffer) {
+    ensure(
+      action.type === 'confirmTrade' || action.type === 'cancelOffer',
+      'Settle the open trade offer first',
+    );
   }
   ensure(actor === state.currentPlayer, "It is not this player's turn");
 
@@ -669,8 +691,53 @@ export function applyAction(prev: GameState, actor: number, action: Action): Gam
       break;
     }
 
+    case 'offerTrade': {
+      requirePhase(state, 'main');
+      ensure(isBag(action.give) && isBag(action.get), 'Malformed offer');
+      ensure(totalCards(action.give) > 0 && totalCards(action.get) > 0, 'Both sides must offer something');
+      ensure(RESOURCES.every((r) => action.give[r] === 0 || action.get[r] === 0), 'Cannot trade a resource for itself');
+      ensure(hasResources(me.resources, action.give), 'You do not have those cards');
+      const responses: Record<number, 'pending'> = {};
+      for (const p of state.players) if (p.id !== actor) responses[p.id] = 'pending';
+      state.offerCount = (state.offerCount ?? 0) + 1;
+      state.offersThisTurn = (state.offersThisTurn ?? 0) + 1;
+      state.tradeOffer = {
+        id: state.offerCount,
+        from: actor,
+        give: { ...action.give },
+        get: { ...action.get },
+        responses,
+        reasons: {},
+      };
+      log(state, actor, `${me.name} offers ${describeBag(action.give)} for ${describeBag(action.get)}.`);
+      break;
+    }
+
+    case 'confirmTrade': {
+      const offer = state.tradeOffer;
+      ensure(offer && offer.from === actor, 'There is no offer of yours to confirm');
+      ensure(offer.responses[action.partner] === 'accept', 'That player has not accepted');
+      const partner = state.players[action.partner];
+      ensure(hasResources(me.resources, offer.give), 'You no longer have those cards');
+      ensure(hasResources(partner.resources, offer.get), `${partner.name} no longer has those cards`);
+      moveResources(me.resources, partner.resources, offer.give);
+      moveResources(partner.resources, me.resources, offer.get);
+      state.tradesThisTurn++;
+      state.tradeOffer = null;
+      log(state, actor, `${me.name} trades ${describeBag(offer.give)} to ${partner.name} for ${describeBag(offer.get)}.`);
+      break;
+    }
+
+    case 'cancelOffer': {
+      ensure(state.tradeOffer && state.tradeOffer.from === actor, 'There is no offer of yours to withdraw');
+      state.tradeOffer = null;
+      log(state, actor, `${me.name} withdraws the offer.`);
+      break;
+    }
+
     case 'endTurn': {
       requirePhase(state, 'main');
+      state.offersThisTurn = 0;
       me.devCards.push(...me.newDevCards);
       me.newDevCards = [];
       state.devCardPlayedThisTurn = false;
@@ -730,6 +797,18 @@ function handleDiscard(state: GameState, actor: number, player: number, cards: R
   delete state.pendingDiscards[player];
   log(state, player, `${p.name} discards ${owed} cards.`);
   if (Object.keys(state.pendingDiscards).length === 0) state.phase = 'moveRaider';
+}
+
+function handleOfferResponse(state: GameState, actor: number, player: number, accept: boolean, reason?: string) {
+  const offer = state.tradeOffer;
+  ensure(offer, 'There is no open offer');
+  ensure(actor === player, 'Players answer only for themselves');
+  ensure(offer.responses[player] === 'pending', 'This player has already answered');
+  const p = state.players[player];
+  if (accept) ensure(hasResources(p.resources, offer.get), 'You do not have the cards asked for');
+  offer.responses[player] = accept ? 'accept' : 'decline';
+  if (typeof reason === 'string' && reason) offer.reasons[player] = reason.slice(0, 80);
+  log(state, player, `${p.name} ${accept ? 'accepts' : 'declines'} the offer.`);
 }
 
 function startDevCard(state: GameState, actor: number, card: CardPlay['card']): CardPlay {

@@ -32,14 +32,18 @@ import {
   type ResourceBag,
 } from '../engine';
 import { nextRandom, type RngHolder } from '../engine/rng';
+import { playerView } from './view';
 
 const MAX_TRADES_PER_TURN = 6;
 
 // ---------------------------------------------------------------------------
 // Evaluation helpers
 
+/** Deterministic randomness for AI choices, seeded only from public information. */
 function aiRng(state: GameState, player: number): RngHolder {
-  return { rngState: (state.rngState ^ Math.imul(player + 1, 0x9e3779b1) ^ (state.log.length * 7919)) | 0 };
+  let h = Math.imul(player + 1, 0x9e3779b1) ^ Math.imul(state.log.length + 1, 7919) ^ state.turn;
+  for (const hex of state.hexes) h = Math.imul(h ^ ((hex.token ?? 0) + hex.id * 13), 0x85ebca6b);
+  return { rngState: h | 0 };
 }
 
 /** Total pips per resource over the whole island — scarce resources are worth more. */
@@ -369,6 +373,7 @@ function chooseDevCardPlay(state: GameState, player: number, difficulty: Difficu
   if (shouldPlayWarden(state, player, difficulty)) return { type: 'playWarden' };
 
   if (canPlayDevCard(state, player, 'embargo')) {
+    // Rivals' hands here are public estimates, not their real contents.
     let best: Resource = 'timber';
     let bestCount = -1;
     for (const r of RESOURCES) {
@@ -476,6 +481,12 @@ function chooseMainAction(state: GameState, player: number, difficulty: Difficul
     if (!hurtsGoal || totalCards(me.resources) > 7 || goal?.kind === 'devCard') return { type: 'buyDevCard' };
   }
 
+  if (goal && !hasResources(me.resources, COSTS[goal.kind])) {
+    // Ask the table first; a 1-for-1 swap beats the bank's 4-for-1.
+    const offer = chooseOffer(state, player, difficulty, COSTS[goal.kind]);
+    if (offer) return offer;
+  }
+
   if (goal) {
     if (hasResources(me.resources, COSTS[goal.kind])) {
       const action = planToAction(goal);
@@ -496,6 +507,51 @@ function chooseMainAction(state: GameState, player: number, difficulty: Difficul
   return { type: 'endTurn' };
 }
 
+/** Rounds a rival waits after making an offer before making another. */
+const OFFER_COOLDOWN_ROUNDS = 2;
+
+function lastOfferTurn(state: GameState, player: number): number | null {
+  for (let i = state.log.length - 1; i >= 0; i--) {
+    const entry = state.log[i];
+    if (entry.player === player && entry.text.startsWith(`${state.players[player].name} offers `)) return entry.turn;
+  }
+  return null;
+}
+
+/**
+ * Propose trading one surplus card for the one card still missing toward `cost`.
+ * Offers interrupt everyone, so each rival makes at most one per turn and then
+ * waits a couple of rounds.
+ */
+function chooseOffer(state: GameState, player: number, difficulty: Difficulty, cost: ResourceBag): Action | null {
+  if ((state.offersThisTurn ?? 0) > 0) return null;
+  const last = lastOfferTurn(state, player);
+  if (last !== null && state.turn - last < OFFER_COOLDOWN_ROUNDS * state.players.length) return null;
+  const have = state.players[player].resources;
+  const need = missing(have, cost);
+  // Only when one card short, and the bank cannot close the gap: offers interrupt everyone.
+  if (totalCards(need) !== 1 || tradeToward(state, player, cost)) return null;
+  const want = RESOURCES.find((r) => need[r] > 0)!;
+  const surplus = RESOURCES.filter((r) => r !== want && have[r] - cost[r] > 0).sort(
+    (a, b) => have[b] - cost[b] - (have[a] - cost[a]),
+  );
+  if (!surplus.length) return null;
+  const spare = surplus[0];
+  if (difficulty === 'basic' && have[spare] - cost[spare] < 2) return null;
+  return { type: 'offerTrade', give: bag({ [spare]: 1 }), get: bag({ [want]: 1 }) };
+}
+
+/** Pick whom to trade with among those who accepted, avoiding whoever is ahead. */
+function choosePartner(state: GameState): Action {
+  const offer = state.tradeOffer!;
+  const acceptors = Object.entries(offer.responses)
+    .filter(([, a]) => a === 'accept')
+    .map(([p]) => Number(p))
+    .sort((a, b) => victoryPoints(state, a, false) - victoryPoints(state, b, false));
+  const partner = acceptors.find((p) => victoryPoints(state, p, false) < 8);
+  return partner === undefined ? { type: 'cancelOffer' } : { type: 'confirmTrade', partner };
+}
+
 function roadRaceWorthIt(state: GameState, player: number): boolean {
   const mine = longestRoadLength(state, player);
   if (state.longestRoadHolder === player) {
@@ -506,8 +562,12 @@ function roadRaceWorthIt(state: GameState, player: number): boolean {
   return mine >= holderLen - 1 && mine >= 3;
 }
 
-/** Choose the next action for `player`. Must only be called when that player is due to act. */
-export function chooseAction(state: GameState, player: number): Action {
+/**
+ * Choose the next action for `player`. Must only be called when that player is due to act.
+ * Decisions use only what `player` could know (see playerView).
+ */
+export function chooseAction(real: GameState, player: number): Action {
+  const state = playerView(real, player);
   const difficulty = state.players[player].difficulty;
   const rng = aiRng(state, player);
   switch (state.phase) {
@@ -528,8 +588,17 @@ export function chooseAction(state: GameState, player: number): Action {
       const edge = chooseRoadEdge(state, player, difficulty, rng);
       return { type: 'placeFreeRoad', edge: edge ?? legalRoadEdges(state, player)[0] };
     }
-    case 'main':
+    case 'main': {
+      const offer = state.tradeOffer;
+      if (offer) {
+        if (offer.from !== player) {
+          const answer = tradeResponse(state, player, offer.give, offer.get);
+          return { type: 'respondToOffer', player, accept: answer.accept, reason: answer.reason };
+        }
+        return choosePartner(state);
+      }
       return chooseMainAction(state, player, difficulty, rng);
+    }
     case 'gameOver':
       throw new Error('The game is over');
   }

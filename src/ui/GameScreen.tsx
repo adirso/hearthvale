@@ -19,7 +19,15 @@ import {
 } from '../engine';
 import { ResourceGlyph } from './art';
 import { Board, NO_TARGETS, type BoardTargets } from './Board';
-import { BankTradePanel, DiscardDialog, PlayerTradePanel, ResourcePickDialog, StealDialog } from './dialogs';
+import {
+  BankTradePanel,
+  DiscardDialog,
+  IncomingOfferDialog,
+  OfferWatch,
+  PlayerTradePanel,
+  ResourcePickDialog,
+  StealDialog,
+} from './dialogs';
 import { EndScreen } from './EndScreen';
 import { CostsPanel, DevCardsPanel, Dice, HandPanel, LogPanel, PlayersPanel } from './panels';
 import { playSound, setSoundEnabled } from './sound';
@@ -50,6 +58,16 @@ function prompt(state: GameState, humanId: number, mode: BuildMode): string {
     return state.pendingDiscards[humanId] !== undefined
       ? `A 7! Choose ${state.pendingDiscards[humanId]} cards to give up.`
       : 'A 7! Waiting for rivals to give up cards…';
+  }
+  const offer = state.tradeOffer;
+  if (offer) {
+    if (offer.responses[humanId] === 'pending') return `${state.players[offer.from].name} offers a trade. Accept or decline.`;
+    if (offer.from === humanId) {
+      return Object.values(offer.responses).includes('pending')
+        ? 'Waiting for rivals to answer your offer…'
+        : 'Choose who to trade with, or withdraw your offer.';
+    }
+    return `${state.players[offer.from].name} is trading…`;
   }
   if (state.currentPlayer !== humanId) {
     const last = [...state.log].reverse().find((l) => l.player === cur.id);
@@ -119,7 +137,7 @@ function quickHint(t: BoardTargets): string | null {
 }
 
 export function GameScreen({ initial, speed, onSpeedChange, sound, onSoundChange, onNewGame, onMenu }: Props) {
-  const { state, humanId, error, notice, dispatch, askRivals, tradeWith, announce, clearMessages } = useGameController(initial, speed);
+  const { state, humanId, error, notice, dispatch, announce, clearMessages } = useGameController(initial, speed);
   const [rawMode, setMode] = useState<BuildMode>(null);
   const [rawPanel, setPanel] = useState<SidePanel>(null);
   const [rawPicker, setPicker] = useState<'embargo' | 'bounty' | null>(null);
@@ -137,7 +155,11 @@ export function GameScreen({ initial, speed, onSpeedChange, sound, onSoundChange
 
   const me = state.players[humanId];
   const myTurn = state.currentPlayer === humanId && state.phase !== 'gameOver';
-  const inMain = myTurn && state.phase === 'main';
+  const offer = state.tradeOffer ?? null;
+  // While an offer is open, nothing else can happen until it is settled.
+  const inMain = myTurn && state.phase === 'main' && !offer;
+  const myOffer = offer?.from === humanId;
+  const mustAnswer = !!offer && offer.responses[humanId] === 'pending';
 
   // Selections only apply while they make sense for the current phase.
   const mode = inMain ? rawMode : null;
@@ -168,7 +190,7 @@ export function GameScreen({ initial, speed, onSpeedChange, sound, onSoundChange
   }, [error]);
 
   const targets: BoardTargets = useMemo(() => {
-    if (!myTurn) return NO_TARGETS;
+    if (!myTurn || state.tradeOffer) return NO_TARGETS;
     const t: BoardTargets = {
       vertices: new Set(),
       edges: new Set(),
@@ -378,9 +400,19 @@ export function GameScreen({ initial, speed, onSpeedChange, sound, onSoundChange
               onClose={() => setPanel(null)}
             />
           )}
-          {panel === 'players' && inMain && (
-            <PlayerTradePanel state={state} humanId={humanId} onAsk={askRivals} onTrade={tradeWith} onClose={() => setPanel(null)} />
+          {(myOffer || (panel === 'players' && inMain)) && (
+            <PlayerTradePanel
+              state={state}
+              humanId={humanId}
+              onOffer={(give, get) => dispatch({ type: 'offerTrade', give, get })}
+              onConfirm={(partner) => {
+                if (dispatch({ type: 'confirmTrade', partner })) setPanel(null);
+              }}
+              onWithdraw={() => dispatch({ type: 'cancelOffer' })}
+              onClose={() => setPanel(null)}
+            />
           )}
+          {offer && !myOffer && !mustAnswer && <OfferWatch state={state} humanId={humanId} />}
 
           <HandPanel state={state} humanId={humanId} />
           <DevCardsPanel state={state} humanId={humanId} onPlay={playCard} />
@@ -396,6 +428,14 @@ export function GameScreen({ initial, speed, onSpeedChange, sound, onSoundChange
           state={state}
           humanId={humanId}
           onConfirm={(cards) => dispatch({ type: 'discard', player: humanId, cards })}
+        />
+      )}
+      {mustAnswer && (
+        <IncomingOfferDialog
+          key={offer!.id}
+          state={state}
+          humanId={humanId}
+          onAnswer={(accept) => dispatch({ type: 'respondToOffer', player: humanId, accept })}
         />
       )}
       {myTurn && state.phase === 'steal' && <StealDialog state={state} onPick={(victim) => dispatch({ type: 'steal', victim })} />}

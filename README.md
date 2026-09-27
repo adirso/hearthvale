@@ -72,7 +72,10 @@ The UI only ever calls `applyAction(state, player, action)`. The engine throws
 - Roads must connect to your network and cannot pass through a rival's building.
 - Correct costs, and limits of 15 roads, 5 settlements and 4 cities per player.
 - Bank trading at 4:1, 3:1 at generic harbors and 2:1 at matching harbors.
-- Player trades: set up an offer once and send it to all rivals. Each one answers accept or decline with a short reason, and you choose which accepting rival to trade with. Changing the offer, or anything else happening in the game, clears old answers.
+- Player trades work the same way for everyone. On your turn you make one offer to the whole table. Every other player answers accept or decline, and rivals give a short reason. The player who offered then picks one of the accepters or withdraws the offer. Nothing else can happen while an offer is open.
+  - **Rivals propose trades.** When a rival is one card short of its goal and the bank can't cover it, it offers one surplus card to everyone and then trades with the accepter who has the fewest points. Each rival makes at most one offer per turn, then waits two rounds before offering again, so offers don't flood you.
+  - **Offers to you** open a dialog with Accept and Decline.
+  - **Offers between rivals** appear in a live panel, showing each answer as it arrives.
 - Development deck of 25 cards: 14 Warden, 5 Monument, 2 each of Embargo, Bounty and Surveyor.
   - A card cannot be played on the turn it was bought.
   - At most one card can be played per turn, and it may be played before or after rolling.
@@ -83,6 +86,7 @@ The UI only ever calls `applyAction(state, player, action)`. The engine throws
 - Victory at 10 points, checked on the current player's turn. The game ends immediately and rejects all further actions.
 
 **Computer rivals** (`src/ai/ai.ts`)
+- **They play fair.** Every decision is made from a redacted copy of the game (`src/ai/view.ts`). Rivals' hand contents are replaced by estimates, other players' development cards and the deck order are masked, a robbery's resource stays hidden from anyone except the thief and the victim, and the dice generator's state is removed. A test checks that an AI makes identical decisions whatever its rivals really hold.
 - **Basic:** picks openings by raw pip count with some randomness, builds whatever it can afford, trades only when it has a big surplus, and places the raider loosely.
 - **Intermediate:** scores openings on production probability, weights scarce resources more, and adds bonuses for resource diversity, harbors and room to expand. It aims its setup roads at the best follow-up spot. During play it picks a goal (settlement, city, road toward the best reachable spot, or development card), makes bank and harbor trades only when they complete that goal, and competes for the Grand Highway and Strongest Guard. It aims the raider at the leader's best tile without hitting itself, discards cards it doesn't need for its goal, and plays each card when it helps.
 - Both levels pause between actions (adjustable pace: relaxed, normal or fast). New pieces animate in, the dice tumble, and the prompt bar and Chronicle log narrate each move.
@@ -126,8 +130,8 @@ The UI only ever calls `applyAction(state, player, action)`. The engine throws
 
 ## Known limitations and simplifications
 
-- **Rivals never propose trades.** You can offer trades to them and they accept or decline, but they never offer trades to you or to each other. They trade only with the bank and harbors.
-- **Rivals see opponents' hand contents.** When choosing an Embargo resource or judging a trade, the AI reads exact hand contents. A human could only track this by careful card counting.
+- **Offers are one-shot.** There is no counter-offer or haggling. A player can accept or decline, and the proposer can withdraw and try a different offer.
+- **Rivals estimate hands; they don't count cards.** The AI decides only from what a player could know. It guesses a rival's hand from that rival's exact (public) hand size, split by what the rival produces. It doesn't track individual trades and steals the way a careful human card-counter might.
 - **Harbor layout is not fully random.** Harbor positions follow a fixed evenly spaced pattern that is rotated randomly each game, and harbor types are shuffled.
 - **The 6/8 rule is a layout constraint.** Keeping 6s and 8s apart is a common layout convention, not a base-game requirement.
 - **Automatic steal.** When exactly one rival can be robbed, the steal happens automatically.

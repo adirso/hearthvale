@@ -33,6 +33,8 @@ export function soundCues(prev: GameState, next: GameState, humanId: number): So
     add(play.card, 0.35);
   } else if (!prev.devCardPlayedThisTurn && next.devCardPlayedThisTurn) add('playCard');
   if (next.tradesThisTurn > prev.tradesThisTurn) add('trade');
+  const offer = next.tradeOffer;
+  if (offer && offer.id !== prev.tradeOffer?.id && offer.from !== humanId) add('offer');
 
   if (next.raiderHex !== prev.raiderHex) add('raider');
   if (prev.phase === 'moveRaider' || prev.phase === 'steal') {
